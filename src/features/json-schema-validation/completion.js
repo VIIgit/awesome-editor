@@ -3,63 +3,63 @@ import { JsonPathParser } from './parser';
 import { TokenValidator } from './token-validator';
 
 export class CompletionProvider {
-    constructor(editor, propertyConfigs, schema) {
-        this.editor = editor;
-        this.propertyConfigs = propertyConfigs;
-        this.schema = schema;
-        this.tokenValidator = new TokenValidator(editor, propertyConfigs, schema);
-    }
+  constructor(editor, propertyConfigs, schema) {
+    this.editor = editor;
+    this.propertyConfigs = propertyConfigs;
+    this.schema = schema;
+    this.tokenValidator = new TokenValidator(editor, propertyConfigs, schema);
+  }
 
-    setupCompletion() {
-        monaco.languages.registerCompletionItemProvider("json", {
-            triggerCharacters: ['"', ' '],
-            provideCompletionItems: (model, position) => {
-                const content = model.getValue();
-                const offset = model.getOffsetAt(position);
-                console.log('Position:', position, 'Offset:', offset);
-                console.log('Content:', content);
-                
-                const parser = new JsonPathParser(content);
-                const jsonPath = parser.getPathAtOffset(offset);
+  setupCompletion() {
+    monaco.languages.registerCompletionItemProvider("json", {
+      triggerCharacters: ['"', ' '],
+      provideCompletionItems: (model, position) => {
+        const content = model.getValue();
+        const offset = model.getOffsetAt(position);
+        console.log('Position:', position, 'Offset:', offset);
+        console.log('Content:', content);
 
-                const property = this.propertyConfigs.find(
-                    p => JSON.stringify(p.jsonPath) === JSON.stringify(jsonPath)
-                );
-                if (!property) return { suggestions: [] };
+        const parser = new JsonPathParser(content);
+        const jsonPath = parser.getPathAtOffset(offset);
 
-                let obj;
-                try { 
-                    obj = JSON.parse(content); 
-                } catch { 
-                    return { suggestions: [] }; 
-                }
+        const property = this.propertyConfigs.find(
+          p => JSON.stringify(p.jsonPath) === JSON.stringify(jsonPath)
+        );
+        if (!property) return { suggestions: [] };
 
-                let val = obj;
-                for (const k of property.jsonPath) {
-                    if (val && typeof val === "object" && k in val) val = val[k];
-                    else { val = ""; break; }
-                }
+        let obj;
+        try {
+          obj = JSON.parse(content);
+        } catch {
+          return { suggestions: [] };
+        }
 
-                const currentTokens = typeof val === "string" && val.trim().length > 0
-                    ? val.trim().split(/\s+/)
-                    : [];
+        let val = obj;
+        for (const k of property.jsonPath) {
+          if (val && typeof val === "object" && k in val) val = val[k];
+          else { val = ""; break; }
+        }
 
-                debugger; // Browser will pause here when you trigger completions
-                const pattern = this.tokenValidator.getPatternByPath(this.tokenValidator.schema, property.schemaPath);
-                const tokens = pattern ? this.tokenValidator.extractNamesFromPattern(pattern) : [];
+        const currentTokens = typeof val === "string" && val.trim().length > 0
+          ? val.trim().split(/\s+/)
+          : [];
 
-                const remaining = tokens.filter(n => !currentTokens.includes(n));
+        debugger; // Browser will pause here when you trigger completions
+        const pattern = this.tokenValidator.getPatternByPath(this.tokenValidator.schema, property.schemaPath);
+        const tokens = pattern ? this.tokenValidator.extractNamesFromPattern(pattern) : [];
 
-                return {
-                    suggestions: remaining.map(name => ({
-                        label: name,
-                        kind: monaco.languages.CompletionItemKind.Value,
-                        insertText: name,
-                        detail: `From schema pattern (${property.label})`,
-                        sortText: "0"
-                    }))
-                };
-            }
-        });
-    }
+        const remaining = tokens.filter(n => !currentTokens.includes(n));
+
+        return {
+          suggestions: remaining.map(name => ({
+            label: name,
+            kind: monaco.languages.CompletionItemKind.Value,
+            insertText: name,
+            detail: `From schema pattern (${property.label})`,
+            sortText: "0"
+          }))
+        };
+      }
+    });
+  }
 }
