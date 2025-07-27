@@ -1,14 +1,25 @@
 const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 
 module.exports = {
-  entry: './src/index.js',
+  entry: {
+    'json-schema-validation': './src/features/json-schema-validation/index.js'
+  },
   output: {
     filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'dist'),
     libraryTarget: 'umd',
+    library: ['awesomeEditor', '[name]'],
+    globalObject: 'this',
     clean: true
+  },
+  externals: {
+    'monaco-editor': {
+      commonjs: 'monaco-editor',
+      commonjs2: 'monaco-editor',
+      amd: 'monaco-editor',
+      root: 'monaco'
+    }
   },
   module: {
     rules: [
@@ -24,16 +35,16 @@ module.exports = {
   },
   plugins: [
     new MonacoWebpackPlugin({
-      languages: ['javascript', 'typescript', 'html', 'css', 'json']
-    }),
-    new HtmlWebpackPlugin({
-      template: './demo/index.html',
-      filename: 'index.html',
-      chunks: ['demo']
+      languages: ['json']
     })
   ],
   devServer: {
-    static: './dist',
-    hot: true
-  }
+    static: {
+      directory: path.join(__dirname, 'examples')
+    },
+    hot: true,
+    open: true,
+    port: 8080
+  },
+  mode: 'production'
 };

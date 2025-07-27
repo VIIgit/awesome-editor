@@ -2,24 +2,28 @@
   "name": "@vii7/awesome-editor",
   "version": "0.1.0",
   "description": "A collection of pluggable features for Monaco Editor",
-  "main": "dist/index.js",
+  "main": "dist/json-schema-validation.bundle.js",
+  "browser": "dist/json-schema-validation.bundle.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/VIIgit/awesome-editor.git"
   },
   "exports": {
-    ".": "./dist/index.js",
-    "./features/*": "./dist/features/*/index.js"
+    ".": "./dist/json-schema-validation.bundle.js",
+    "./json-schema-validation": "./dist/json-schema-validation.bundle.js"
   },
   "files": [
     "dist",
-    "dist/features"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "start": "webpack serve --mode development --config examples/webpack.config.js",
     "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
     "prepare": "npm run build",
-    "examples": "webpack serve --mode development --config examples/webpack.config.js"
+    "examples": "webpack serve --mode development --config examples/webpack.config.js",
+    "dev": "webpack serve --mode development"
   },
   "keywords": [
     "editor",
@@ -40,5 +44,8 @@
     "webpack": "^5.100.2",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.2"
+  },
+  "peerDependencies": {
+    "monaco-editor": "^0.52.2"
   }
 }
