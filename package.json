@@ -1,8 +1,12 @@
 {
-  "name": "awesome-editor",
-  "version": "1.0.0-stable",
+  "name": "@vii7/awesome-editor",
+  "version": "0.1.0",
   "description": "A collection of pluggable features for Monaco Editor",
   "main": "dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VIIgit/awesome-editor.git"
+  },
   "exports": {
     ".": "./dist/index.js",
     "./features/*": "./dist/features/*/index.js"
@@ -17,7 +21,14 @@
     "prepare": "npm run build",
     "examples": "webpack serve --mode development --config examples/webpack.config.js"
   },
-  "keywords": ["editor", "monaco", "monaco-editor", "json", "schema", "validation"],
+  "keywords": [
+    "editor",
+    "monaco",
+    "monaco-editor",
+    "json",
+    "schema",
+    "validation"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {

@@ -2,6 +2,8 @@ import * as monaco from 'monaco-editor';
 import { CompletionProvider } from './completion';
 import { TokenValidator } from './token-validator';
 
+export { setupHoverProvider } from './hover';
+
 export function setupJsonValidation(editor, options) {
     if (!options.schema || !options.properties) {
         throw new Error('Schema and properties are required for JSON validation setup');
