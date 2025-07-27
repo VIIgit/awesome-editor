@@ -1,0 +1,33 @@
+{
+  "name": "awesome-editor",
+  "version": "1.0.0-stable",
+  "description": "A collection of pluggable features for Monaco Editor",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./features/*": "./dist/features/*/index.js"
+  },
+  "files": [
+    "dist",
+    "dist/features"
+  ],
+  "scripts": {
+    "start": "webpack serve --mode development --config examples/webpack.config.js",
+    "build": "webpack --mode production",
+    "prepare": "npm run build",
+    "examples": "webpack serve --mode development --config examples/webpack.config.js"
+  },
+  "keywords": ["editor", "monaco", "monaco-editor", "json", "schema", "validation"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.6.3",
+    "monaco-editor": "^0.52.2",
+    "monaco-editor-webpack-plugin": "^7.1.0",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.100.2",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
+  }
+}
