@@ -4,7 +4,8 @@ const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 
 module.exports = {
     entry: {
-        'json-schema-validation': './examples/json-schema-validation/index.js'
+        'json-schema-validation': './examples/json-schema-validation/index.js',
+        'query-language': './examples/query-language/index.js'
     },
     output: {
         filename: '[name]/index.js',
@@ -31,16 +32,29 @@ module.exports = {
             template: './examples/json-schema-validation/index.html',
             filename: 'json-schema-validation/index.html',
             chunks: ['json-schema-validation']
+        }),
+        new HtmlWebpackPlugin({
+            template: './examples/query-language/index.html',
+            filename: 'query-language/index.html',
+            chunks: ['query-language']
         })
     ],
     devServer: {
-        static: './dist/examples',
+        static: {
+            directory: path.join(__dirname, '../'),
+            publicPath: '/',
+            serveIndex: true,
+            watch: true
+        },
         hot: true,
         open: {
-            target: ['/json-schema-validation/'],
+            target: ['/query-language/'],
             app: {
                 name: process.platform === 'darwin' ? 'google chrome' : 'chrome'
             }
+        },
+        devMiddleware: {
+            publicPath: '/'
         }
     }
 };

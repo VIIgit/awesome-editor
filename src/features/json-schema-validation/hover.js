@@ -1,12 +1,12 @@
 import * as monaco from 'monaco-editor';
 
 export function setupHoverProvider(options) {
-  const { detailsProvider, contentTemplate = (word, details) => [
-    { value: `**${word} ${details}**` }
+  const { wordMap, contentTemplate = (word, wordDetail) => [
+    { value: `**${word} ${wordDetail}**` }
   ] } = options;
 
-  if (!detailsProvider) {
-    throw new Error('detailsProvider is required for hover setup');
+  if (!wordMap) {
+    throw new Error('WordMap is required for hover setup');
   }
 
   monaco.languages.registerHoverProvider('json', {
@@ -15,7 +15,7 @@ export function setupHoverProvider(options) {
       const word = model.getWordAtPosition(position);
       if (!word) return null;
 
-      const details = detailsProvider(word.word);
+      const details = wordMap(word.word);
       if (!details) return null;
 
       return {

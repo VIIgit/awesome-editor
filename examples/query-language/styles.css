@@ -1,0 +1,16 @@
+.monaco-editor {
+  height: 20px !important;
+  border: 1px solid #ccc;
+  padding: 5px 10px;
+  background: white;
+}
+
+#container {
+  width: 700px;
+  margin: 2px auto;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+

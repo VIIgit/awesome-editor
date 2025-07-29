@@ -16,7 +16,7 @@ function setupEditorFeatures() {
 
   // Add hover support
   setupHoverProvider({
-    detailsProvider: (name) => PERSON_DETAILS[name],
+    wordMap: (name) => PERSON_DETAILS[name],
     // Optional: customize the hover content
     contentTemplate: (word, details) => [
       { value: `**${word} ${details.lastName}**` },
