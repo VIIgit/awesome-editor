@@ -61,9 +61,6 @@ const commonConfig = {
     ]
   },
   plugins: [
-    new MonacoWebpackPlugin({
-      languages: ['json']
-    }),
     createVanillaFiles() // Add createVanillaFiles to common plugins
   ]
 };

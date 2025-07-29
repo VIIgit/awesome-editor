@@ -80,13 +80,32 @@ You can also use the feature directly in the browser without a build step:
 <html>
 <head>
     <title>JSON Editor</title>
-    <!-- First include Monaco Editor -->
-    <script src="path/to/monaco-editor.js"></script>
-    <!-- Then include our feature -->
-    <script src="path/to/json-schema-validation.js"></script>
 </head>
 <body>
     <div id="editor" style="height: 400px;"></div>
+
+    <!-- Monaco Editor Configuration -->
+    <script>
+        // Configure Monaco's base path and worker paths
+        self.MonacoEnvironment = {
+            getWorkerUrl: function(moduleId, label) {
+                // Use Monaco's workers from your Monaco Editor installation
+                if (label === 'json') {
+                    return '/path/to/monaco-editor/min/vs/language/json/json.worker.js';
+                }
+                return '/path/to/monaco-editor/min/vs/editor/editor.worker.js';
+            }
+        };
+    </script>
+
+    <!-- First include Monaco Editor (use the version that matches your Monaco installation) -->
+    <script src="/path/to/monaco-editor/min/vs/loader.js"></script>
+    <script src="/path/to/monaco-editor/min/vs/editor/editor.main.nls.js"></script>
+    <script src="/path/to/monaco-editor/min/vs/editor/editor.main.js"></script>
+
+    <!-- Then include our feature -->
+    <script src="path/to/awesome-editor/vanilla/json-schema-validation.js"></script>
+
     <script>
         // Create the editor
         const editor = monaco.editor.create(document.getElementById('editor'), {
@@ -159,6 +178,87 @@ Parameters:
 - `options`: Configuration object containing:
   - `wordMap`: Function that takes a word and returns its description
   - `contentTemplate`: (Optional) Function that takes a word and its details and returns an array of markdown content objects
+
+### Monaco Editor Setup
+
+Before using our features directly in the browser, you need to properly set up Monaco Editor. You can do this either through CDN or by hosting the files yourself.
+
+#### Option 1: Using CDN (Recommended for quick setup)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JSON Editor</title>
+</head>
+<body>
+    <div id="editor" style="height: 400px;"></div>
+
+    <!-- Monaco Editor Configuration -->
+    <script>
+        self.MonacoEnvironment = {
+            getWorkerUrl: function(moduleId, label) {
+                const version = '0.45.0'; // Use the version you need
+                if (label === 'json') {
+                    return `https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/${version}/min/vs/language/json/json.worker.js`;
+                }
+                return `https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/${version}/min/vs/editor/editor.worker.js`;
+            }
+        };
+    </script>
+
+    <!-- Monaco Editor from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"></script>
+    <script>
+        require.config({
+            paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }
+        });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.nls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.js"></script>
+
+    <!-- Then include our feature -->
+    <script src="path/to/awesome-editor/vanilla/feature.js"></script>
+</body>
+</html>
+```
+
+#### Option 2: Self-hosted Files
+
+1. Install Monaco Editor in your project:
+
+   ```bash
+   npm install monaco-editor
+   ```
+
+2. Copy Monaco Editor's files to your web server:
+   - From: `node_modules/monaco-editor/min/vs`
+   - To: Your public web directory (e.g., `/public/monaco-editor/min/vs`)
+
+3. Configure Monaco's worker paths in your HTML:
+
+   ```javascript
+   self.MonacoEnvironment = {
+       getWorkerUrl: function(moduleId, label) {
+           if (label === 'json') {
+               return '/monaco-editor/min/vs/language/json/json.worker.js';
+           }
+           return '/monaco-editor/min/vs/editor/editor.worker.js';
+       }
+   };
+   ```
+
+4. Include Monaco's scripts in the correct order:
+
+   ```html
+   <script src="/monaco-editor/min/vs/loader.js"></script>
+   <script src="/monaco-editor/min/vs/editor/editor.main.nls.js"></script>
+   <script src="/monaco-editor/min/vs/editor/editor.main.js"></script>
+   <!-- Then include our features -->
+   <script src="path/to/awesome-editor/vanilla/feature.js"></script>
+   ```
+
+This ensures that Monaco Editor and its workers are properly loaded and configured before our features are initialized.
 
 ## Development
 

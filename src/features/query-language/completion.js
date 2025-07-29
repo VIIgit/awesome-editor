@@ -28,6 +28,9 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
   const operPattern = /^(=|!=|>=|<=|>|<|IN)$/i;
   const logicalPattern = /^(AND|OR)$/i;
   const fieldList = Object.keys(fieldNames);
+  
+  // Create trigger characters for all alphabetical characters
+  const triggerChars = Array.from('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ');
 
   // Documentation helper
   function docMarkdown(text) {
@@ -78,6 +81,9 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
   // Helper to get value suggestions based on field type
   function getValueSuggestions(field) {
     const suggestions = [];
+    if (!field) {
+      return suggestions;
+    }
     if (field.type === 'boolean') {
       suggestions.push(
         { 
@@ -229,8 +235,10 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
       afterLogical: false
     };
 
+    // First check for logical operators as they reset the expression context
     if (!lastToken || logicalPattern.test(lastToken)) {
       context.needsField = true;
+      context.afterLogical = !!lastToken; // true if we're after AND/OR, false if empty query
     } else if (fieldPattern.test(lastToken)) {
       context.needsOperator = true;
       context.currentField = lastToken;
@@ -254,7 +262,7 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
   return monaco.languages.registerCompletionItemProvider('querylang', {
     triggerCharacters: [
       ',', ' ', '=', '!', '>', '<', '[', ']', '(', ')', '"', "'",
-      ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+      ...triggerChars
     ],
     provideCompletionItems: (model, position) => {
       // Get text up to cursor
@@ -271,18 +279,35 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
       let suggestions = [];
 
       // Context-aware suggestions
-      if (context.needsField) {
-        suggestions = fieldList.map(f => ({
-          label: f,
-          kind: monaco.languages.CompletionItemKind.Field,
-          insertText: `${f} `,
-          documentation: docMarkdown(descriptions[f] || ''),
-          sortText: getSortText('field', f),
-          command: { id: 'editor.action.triggerSuggest' }
-        }));
+      if (context.needsField || context.afterLogical || (tokens.length === 1 && /^[a-zA-Z]+$/.test(tokens[0]) && !fieldPattern.test(tokens[0]))) {
+        // Get the current word being typed
+        const currentWord = context.afterLogical ? '' : (tokens[tokens.length - 1] || '');
+        const prevToken = context.afterLogical ? tokens[tokens.length - 1] : (tokens[tokens.length - 2] || '');
+        
+        // Only show field suggestions if:
+        // 1. We're at the start of a query, or
+        // 2. After a logical operator (AND/OR), or
+        // 3. We're typing something that isn't a complete field name yet
+        if (!prevToken || logicalPattern.test(prevToken) || !fieldPattern.test(currentWord)) {
+          // Filter field list by the current word if it's an alphabetical string
+          const matchingFields = /^[a-zA-Z]+$/.test(currentWord) 
+            ? fieldList.filter(f => f.toLowerCase().startsWith(currentWord.toLowerCase()))
+            : fieldList;
+
+          suggestions = matchingFields.map(f => ({
+            label: f,
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: `${f} `,
+            documentation: docMarkdown(descriptions[f] || ''),
+            sortText: getSortText('field', f),
+            command: { id: 'editor.action.triggerSuggest' }
+          }));
+        } else {
+          suggestions = [];
+        }
       } else if (context.needsOperator && context.currentField) {
         suggestions = getOperatorSuggestions(fieldNames[context.currentField], position, model);
-      } else if (context.needsValue && context.currentField) {
+      } else if (context.needsValue && context.currentField && fieldNames[context.currentField]) {
         suggestions = getValueSuggestions(fieldNames[context.currentField]);
       } else if (context.inList && context.currentField) {
         // Handle IN list suggestions...

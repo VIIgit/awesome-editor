@@ -1,6 +1,6 @@
 {
   "name": "@vii7/awesome-editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A collection of pluggable features for Monaco Editor",
   "main": "dist/json-schema-validation.bundle.js",
   "browser": "dist/json-schema-validation.bundle.js",

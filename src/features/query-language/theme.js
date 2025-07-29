@@ -7,7 +7,7 @@ export function setupEditorTheme(monaco) {
     base: "vs",
     inherit: true,
     rules: [
-      { token: 'identifier', foreground: '795E26', background: 'FFF3D0' },
+      { token: 'identifier', foreground: '795E26', background: 'FFF3D0', fontStyle: 'italic' },
       { token: 'operator', foreground: 'af00db' },
       { token: 'boolean', foreground: '5f5757', fontStyle: 'bold' },
       { token: 'number', foreground: '5f5757', fontStyle: 'bold' },
