@@ -49,6 +49,20 @@ function createVanillaFiles() {
             files.forEach(file => {
               content += processFile(path.join(baseDir, file)) + '\n\n';
             });
+          } else if (feature === 'query-language') {
+            // For query-language, include all dependencies in correct order
+            const baseDir = path.resolve(__dirname, 'src/features/query-language');
+            const files = [
+              'language-config.js',
+              'theme.js',
+              'tokens.js',
+              'completion.js',
+              'validation.js',
+              'index.js'
+            ];
+            files.forEach(file => {
+              content += processFile(path.join(baseDir, file)) + '\n\n';
+            });
           } else {
             // For other features, just process the main file
             content = processFile(srcPath);
@@ -67,7 +81,7 @@ function createVanillaFiles() {
             window.awesomeEditor = window.awesomeEditor || {};
             window.awesomeEditor['${feature}'] = {
               ${feature === 'json-schema-validation' ? 'setupJsonValidation, setupHoverProvider' :
-                feature === 'query-language' ? 'setupQueryLanguage' :
+                feature === 'query-language' ? 'setupQueryLanguage, createQueryEditor' :
                 feature === 'smart-table' ? 'setupSmartTable' : ''}
             };
           })(window.monaco);\n`;
