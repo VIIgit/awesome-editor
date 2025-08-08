@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Validation Debug Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+        }
+        #editor {
+            width: 600px;
+            height: 200px;
+            border: 1px solid #ccc;
+        }
+        #debug {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Query Validation Debug</h1>
+    <div id="editor"></div>
+    <div id="debug"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script>
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        
+        require(['vs/editor/editor.main'], function() {
+            const fieldNames = {
+                category: { type: 'string', values: ['Books', 'Electronics', 'Clothing'] },
+                price: { type: 'number', range: { min: 0, max: 1000 } },
+                available: { type: 'boolean' }
+            };
+
+            const languageId = 'query-language-debug';
+
+            // Register the language
+            monaco.languages.register({ id: languageId });
+
+            // Simple tokenizer for debugging
+            function tokenize(str) {
+                const tokens = [];
+                const re = /([()\[\]]|!=|>=|<=|=|>|<|IN|AND|OR|,|"(?:[^"\\]|\\.)*(?:"|$)|[-]?\d*\.?\d+|true|false|\w+)/gi;
+                let match;
+                
+                while ((match = re.exec(str)) !== null) {
+                    const value = match[0].trim();
+                    if (!value) continue;
+
+                    let type = 'identifier';
+                    if (/^-?\d*\.?\d+$/.test(value)) type = 'number';
+                    else if (/^".*"$/.test(value)) type = 'string';
+                    else if (/^"/.test(value)) type = 'unclosed-string';
+                    else if (/^(true|false)$/i.test(value)) type = 'boolean';
+                    else if (/^(AND|OR|IN)$/i.test(value)) type = 'keyword';
+                    else if (/^[=!<>]=?$/.test(value)) type = 'operator';
+                    else if (/^[\[\](),]$/.test(value)) type = 'punctuation';
+
+                    tokens.push({
+                        value,
+                        type,
+                        start: match.index,
+                        end: match.index + match[0].length
+                    });
+                }
+
+                return tokens;
+            }
+
+            // Test the validation logic directly
+            function testValidation(query) {
+                console.log('Testing query:', query);
+                const tokens = tokenize(query);
+                console.log('Tokens:', tokens);
+                
+                const markers = [];
+                
+                // Find IN operator
+                const inIndex = tokens.findIndex(t => t.value.toUpperCase() === 'IN');
+                if (inIndex !== -1) {
+                    console.log('Found IN operator at index:', inIndex);
+                    
+                    // Find field before IN
+                    let fieldName = null;
+                    for (let i = inIndex - 1; i >= 0; i--) {
+                        const token = tokens[i];
+                        if (token.type === 'identifier' && fieldNames[token.value]) {
+                            fieldName = token.value;
+                            break;
+                        }
+                    }
+                    console.log('Found field name:', fieldName);
+                    
+                    // Test IN list validation
+                    let values = [];
+                    let inList = false;
+                    
+                    for (let i = inIndex + 1; i < tokens.length; i++) {
+                        const token = tokens[i];
+                        console.log('Processing token:', token);
+                        
+                        if (token.value === '[') {
+                            inList = true;
+                            continue;
+                        }
+                        
+                        if (!inList) continue;
+                        
+                        if (token.value === ']') {
+                            console.log('End of list, checking duplicates in:', values);
+                            
+                            // Check for duplicates
+                            for (let j = 0; j < values.length; j++) {
+                                for (let k = j + 1; k < values.length; k++) {
+                                    if (values[j].value === values[k].value) {
+                                        console.log('Found duplicate:', values[j].value);
+                                        markers.push({
+                                            message: 'This value is duplicated later in the list',
+                                            start: values[j].token.start,
+                                            end: values[j].token.end
+                                        });
+                                        markers.push({
+                                            message: `Duplicate value ${values[k].value} in IN list`,
+                                            start: values[k].token.start,
+                                            end: values[k].token.end
+                                        });
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        
+                        if (token.value === ',') continue;
+                        
+                        if (['string', 'number', 'boolean'].includes(token.type)) {
+                            values.push({ value: token.value, token: token });
+                        }
+                    }
+                }
+                
+                console.log('Generated markers:', markers);
+                document.getElementById('debug').textContent = 
+                    'Query: ' + query + '\n' +
+                    'Tokens: ' + JSON.stringify(tokens, null, 2) + '\n' +
+                    'Markers: ' + JSON.stringify(markers, null, 2);
+                    
+                return markers;
+            }
+
+            // Create editor
+            const editor = monaco.editor.create(document.getElementById('editor'), {
+                value: 'category IN ["Books", "Books"]',
+                language: languageId,
+                theme: 'vs',
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false
+            });
+
+            // Test on content change
+            editor.onDidChangeModelContent(() => {
+                const query = editor.getValue();
+                testValidation(query);
+            });
+
+            // Initial test
+            testValidation(editor.getValue());
+        });
+    </script>
+</body>
+</html>

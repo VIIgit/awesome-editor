@@ -1,10 +1,15 @@
 import * as monaco from 'monaco-editor';
-import { setupJsonValidation, setupHoverProvider } from '../../src/features/json-schema-validation';
+import { setupJsonValidation, setupHoverProvider } from '@features/json-schema-validation';
 import { schema, PROPERTIES } from './schema';
 import { PERSON_DETAILS } from './person-details';
 import './styles.css';
 
 let monacoEditor;
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  initializeEditor();
+});
 
 // Configure the editor features
 function setupEditorFeatures() {
@@ -38,7 +43,7 @@ function initializeEditor() {
   // First create a Monaco editor instance
   monacoEditor = monaco.editor.create(document.getElementById('editor-container'), {
     language: 'json',
-    theme: 'vs-dark',
+    theme: 'vs',
     automaticLayout: true,
     value: JSON.stringify({
       id: 1,
@@ -58,13 +63,4 @@ function initializeEditor() {
   });
 }
 
-// Initialize on DOM content loaded
-document.addEventListener('DOMContentLoaded', initializeEditor);
 
-// Support hot module replacement
-if (module.hot) {
-  module.hot.accept(['../../src/features/json-schema-validation', './schema'], () => {
-    console.log('Hot reloading validation feature...');
-    initializeEditor();
-  });
-}

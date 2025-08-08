@@ -4,7 +4,70 @@
  * @param {object} options Configuration options
  * @param {object} options.fieldNames The field name definitions
  */
-export function setupCompletionProvider(monaco, { fieldNames }) {
+export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
+  // Set up auto-insertion of brackets after "IN " is typed
+  function setupAutoInsertBrackets(editor) {
+    const disposable = editor.onDidChangeModelContent((e) => {
+      // Only handle single character insertions
+      if (e.changes.length !== 1) return;
+      
+      const change = e.changes[0];
+      if (change.text.length !== 1) return;
+      
+      // Only trigger if the user just typed a space character
+      if (change.text !== ' ') return;
+      
+      const model = editor.getModel();
+      if (!model) return;
+      
+      // Get the current position after the change
+      const position = {
+        lineNumber: change.range.startLineNumber,
+        column: change.range.startColumn + change.text.length
+      };
+      
+      // Get the text before the cursor to check if we just typed "IN "
+      const lineText = model.getLineContent(position.lineNumber);
+      const textBeforeCursor = lineText.substring(0, position.column - 1);
+      
+      // Check if we just completed "IN " (case-sensitive, with space)
+      if (textBeforeCursor.endsWith('IN ')) {
+        // Check if brackets don't already exist immediately after the space
+        const textAfterCursor = lineText.substring(position.column - 1);
+        
+        // Only auto-insert if there are no brackets already present
+        if (!textAfterCursor.trimStart().startsWith('[')) {
+          // Also check that "IN" is a standalone word (not part of another word like "inStock")
+          const beforeIN = textBeforeCursor.substring(0, textBeforeCursor.length - 3);
+          const lastChar = beforeIN[beforeIN.length - 1];
+          
+          // Only proceed if "IN" is preceded by whitespace or is at the start
+          if (!lastChar || /\s/.test(lastChar)) {
+            // Insert brackets and position cursor between them
+            editor.executeEdits('auto-insert-brackets', [
+              {
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: '[]'
+              }
+            ]);
+            
+            // Position cursor between the brackets
+            editor.setPosition({
+              lineNumber: position.lineNumber,
+              column: position.column + 1
+            });
+            
+            // Trigger completion suggestions for the list content
+            setTimeout(() => {
+              editor.trigger('auto-insert', 'editor.action.triggerSuggest', {});
+            }, 10);
+          }
+        }
+      }
+    });
+    
+    return disposable;
+  }
   // Helper: Insert operator with proper spacing
   function operatorInsertText(op, position, model) {
     // Get the text before the cursor
@@ -25,12 +88,11 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
 
   // Create patterns for matching with better context awareness
   const fieldPattern = new RegExp(`^(${Object.keys(fieldNames).join('|')})$`);
-  const operPattern = /^(=|!=|>=|<=|>|<|IN)$/i;
+  const operPattern = /^(=|!=|>=|<=|>|<)$/i;
+  const inPattern = /^IN$/; // Case-sensitive IN operator
   const logicalPattern = /^(AND|OR)$/i;
   const fieldList = Object.keys(fieldNames);
   
-  // Create trigger characters for all alphabetical characters
-  const triggerChars = Array.from('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ');
 
   // Documentation helper
   function docMarkdown(text) {
@@ -109,35 +171,69 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
         documentation: docMarkdown(`String value "${v}"`),
         sortText: getSortText('value', v)
       })));
+    } else if (field.type === 'string' && !field.values) {
+      // For string fields without predefined values, suggest empty quotes with cursor positioning
+      suggestions.push({
+        label: '""',
+        kind: monaco.languages.CompletionItemKind.Value,
+        insertText: '"${1}"',
+        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+        documentation: docMarkdown('Enter a string value'),
+        sortText: getSortText('value', '""'),
+        detail: 'Free text string'
+      });
     } else if (field.type === 'number') {
-      suggestions.push(
-        { 
-          label: '0', 
-          kind: monaco.languages.CompletionItemKind.Value, 
-          insertText: '0', 
-          documentation: docMarkdown('Number value'),
-          sortText: getSortText('value', '0')
-        }
-      );
+      // First add a hint suggestion that shows but doesn't insert anything
+      suggestions.push({
+        label: '(a number)',
+        kind: monaco.languages.CompletionItemKind.Text,
+        insertText: '', // Don't insert anything when selected
+        documentation: docMarkdown(
+          field.range 
+            ? `Enter a number${field.range.min !== undefined ? ` ≥ ${field.range.min}` : ''}${field.range.max !== undefined ? ` ≤ ${field.range.max}` : ''}`
+            : 'Enter a number'
+        ),
+        sortText: getSortText('value', '0'),
+        preselect: false, // Don't preselect this item
+        filterText: '' // Make it appear but not match any typing
+      });
+
+      // Then add actual values if we have range information
       if (field.range) {
+        const suggestions = new Set();
         if (field.range.min !== undefined) {
-          suggestions.push({ 
-            label: field.range.min.toString(), 
-            kind: monaco.languages.CompletionItemKind.Value, 
-            insertText: field.range.min.toString(),
-            documentation: docMarkdown(`Minimum allowed value: ${field.range.min}`),
-            sortText: getSortText('value', field.range.min.toString())
-          });
+          suggestions.add(field.range.min);
         }
         if (field.range.max !== undefined) {
-          suggestions.push({ 
-            label: field.range.max.toString(), 
-            kind: monaco.languages.CompletionItemKind.Value, 
-            insertText: field.range.max.toString(),
-            documentation: docMarkdown(`Maximum allowed value: ${field.range.max}`),
-            sortText: getSortText('value', field.range.max.toString())
-          });
+          suggestions.add(field.range.max);
         }
+        // If we have both min and max, suggest some values in between
+        if (field.range.min !== undefined && field.range.max !== undefined) {
+          const mid = Math.floor((field.range.min + field.range.max) / 2);
+          if (mid !== field.range.min && mid !== field.range.max) {
+            suggestions.add(mid);
+          }
+          // Add quarter points if they're different enough
+          const quarter = Math.floor((field.range.min + mid) / 2);
+          const threeQuarter = Math.floor((mid + field.range.max) / 2);
+          if (quarter !== field.range.min && quarter !== mid) {
+            suggestions.add(quarter);
+          }
+          if (threeQuarter !== mid && threeQuarter !== field.range.max) {
+            suggestions.add(threeQuarter);
+          }
+        }
+
+        // Add all the suggestions
+        [...suggestions].sort((a, b) => a - b).forEach(value => {
+          suggestions.push({
+            label: value.toString(),
+            kind: monaco.languages.CompletionItemKind.Value,
+            insertText: value.toString(),
+            documentation: docMarkdown(`Number value: ${value}`),
+            sortText: getSortText('value', value.toString())
+          });
+        });
       }
     }
     return suggestions;
@@ -242,14 +338,27 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
     } else if (fieldPattern.test(lastToken)) {
       context.needsOperator = true;
       context.currentField = lastToken;
-    } else if (operPattern.test(lastToken)) {
+    } else if (operPattern.test(lastToken) || inPattern.test(lastToken)) {
       context.needsValue = true;
-      context.currentField = prevToken;
-    } else if (/\[$/.test(lastToken) || (/\[/.test(lastToken) && !/\]$/.test(lastToken)) || /,$/.test(lastToken)) {
+      // Find the associated field name by looking backwards
+      for (let i = tokens.length - 2; i >= 0; i--) {
+        if (fieldPattern.test(tokens[i])) {
+          context.currentField = tokens[i];
+          break;
+        }
+        // Stop if we hit a logical operator or another expression
+        if (logicalPattern.test(tokens[i]) || operPattern.test(tokens[i]) || inPattern.test(tokens[i])) {
+          break;
+        }
+      }
+    } else if (/\[$/.test(lastToken) || // after opening bracket
+           (/\[/.test(lastToken) && !/\]$/.test(lastToken)) || // between brackets
+           /,$/.test(lastToken) || // after comma
+           (lastToken === '' && tokens.length >= 2 && /\[/.test(tokens[tokens.length - 2]))) { // empty space between brackets
       context.inList = true;
       // Find the field name before IN
       for (let i = tokens.length - 1; i >= 0; i--) {
-        if (tokens[i].toUpperCase() === 'IN' && i > 0) {
+        if (tokens[i] === 'IN' && i > 0) {
           context.currentField = tokens[i - 1];
           break;
         }
@@ -259,11 +368,14 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
     return context;
   }
 
-  return monaco.languages.registerCompletionItemProvider('querylang', {
-    triggerCharacters: [
-      ',', ' ', '=', '!', '>', '<', '[', ']', '(', ')', '"', "'",
-      ...triggerChars
-    ],
+  const triggerCharacters= [
+      // Add all alphabetical characters first
+      ...Array.from('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+      // Then add other special characters
+      ',', ' ', '=', '!', '>', '<', '[', ']', '(', ')', '"', "'"
+    ];
+  const completionProvider = monaco.languages.registerCompletionItemProvider(languageId, {
+    triggerCharacters,
     provideCompletionItems: (model, position) => {
       // Get text up to cursor
       const text = model.getValueInRange({
@@ -312,6 +424,8 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
       } else if (context.inList && context.currentField) {
         // Handle IN list suggestions...
         const field = fieldNames[context.currentField];
+        if (!field) return { suggestions: [] };
+        
         // Extract existing values
         const listValues = new Set();
         const listStart = tokens.findIndex(t => t === '[');
@@ -321,49 +435,73 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
             .forEach(t => listValues.add(t.replace(/^"(.*)"$/, '$1')));
         }
 
-        if (field) {
-          // Filter out used values and add remaining ones
-          if (field.type === 'string' && field.values) {
-            const remainingValues = field.values.filter(v => !listValues.has(v));
-            suggestions = remainingValues.map(v => ({
-              label: `"${v}"`,
-              kind: monaco.languages.CompletionItemKind.Value,
-              insertText: `"${v}"`,
-              documentation: docMarkdown(`String value "${v}"`),
-              sortText: getSortText('value', v)
-            }));
-          } else if (field.type === 'number') {
-            // For numbers, suggest some reasonable values if we have range info
-            if (field.range) {
-              const values = new Set();
-              if (field.range.min !== undefined) values.add(field.range.min);
-              if (field.range.max !== undefined) values.add(field.range.max);
-              // Add some values in between if we have both min and max
-              if (field.range.min !== undefined && field.range.max !== undefined) {
-                const mid = Math.floor((field.range.min + field.range.max) / 2);
-                values.add(mid);
-              }
-              suggestions = Array.from(values).map(v => ({
-                label: v.toString(),
-                kind: monaco.languages.CompletionItemKind.Value,
-                insertText: v.toString(),
-                documentation: docMarkdown(`Number value ${v}`),
-                sortText: getSortText('value', v.toString())
-              }));
-            }
-          }
+        // Filter out used values and add remaining ones
+        if (field.type === 'string' && field.values) {
+          const remainingValues = field.values.filter(v => !listValues.has(v));
+          suggestions = remainingValues.map(v => ({
+            label: `"${v}"`,
+            kind: monaco.languages.CompletionItemKind.Value,
+            insertText: `"${v}"`,
+            documentation: docMarkdown(`String value "${v}"`),
+            sortText: getSortText('value', v)
+          }));
+        } else if (field.type === 'string' && !field.values) {
+          // For string fields without predefined values in IN lists, suggest empty quotes
+          suggestions.push({
+            label: '""',
+            kind: monaco.languages.CompletionItemKind.Value,
+            insertText: '"${1}"',
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            documentation: docMarkdown('Enter a string value for the list'),
+            sortText: getSortText('value', '""'),
+            detail: 'Free text string'
+          });
+        } else if (field.type === 'number') {
+          // First add the hint suggestion
+          suggestions.push({
+            label: '(a number)',
+            kind: monaco.languages.CompletionItemKind.Text,
+            insertText: '', // Don't insert anything when selected
+            documentation: docMarkdown(
+              field.range 
+                ? `Enter a number${field.range.min !== undefined ? ` ≥ ${field.range.min}` : ''}${field.range.max !== undefined ? ` ≤ ${field.range.max}` : ''}`
+                : 'Enter a number'
+            ),
+            sortText: getSortText('value', '0'),
+            preselect: false,
+            filterText: ''
+          });
 
-          // Add comma if we have values and aren't right after a comma
-          if (suggestions.length > 0 && tokens[tokens.length - 1] !== ',') {
-            suggestions.unshift({
-              label: ',',
-              kind: monaco.languages.CompletionItemKind.Operator,
-              insertText: operatorInsertText(', ', position, model),
-              documentation: docMarkdown('Add another value'),
-              sortText: getSortText('list', ','),
-              command: { id: 'editor.action.triggerSuggest' }
-            });
+          // Then add some reasonable values if we have range info
+          if (field.range) {
+            const values = new Set();
+            if (field.range.min !== undefined) values.add(field.range.min);
+            if (field.range.max !== undefined) values.add(field.range.max);
+            // Add some values in between if we have both min and max
+            if (field.range.min !== undefined && field.range.max !== undefined) {
+              const mid = Math.floor((field.range.min + field.range.max) / 2);
+              values.add(mid);
+            }
+            suggestions.push(...Array.from(values).map(v => ({
+              label: v.toString(),
+              kind: monaco.languages.CompletionItemKind.Value,
+              insertText: v.toString(),
+              documentation: docMarkdown(`Number value ${v}`),
+              sortText: getSortText('value', v.toString())
+            })));
           }
+        }
+
+        // Add comma if we have values and aren't right after a comma
+        if (suggestions.length > 0 && tokens[tokens.length - 1] !== ',') {
+          suggestions.unshift({
+            label: ',',
+            kind: monaco.languages.CompletionItemKind.Operator,
+            insertText: operatorInsertText(', ', position, model),
+            documentation: docMarkdown('Add another value'),
+            sortText: getSortText('list', ','),
+            command: { id: 'editor.action.triggerSuggest' }
+          });
         }
       } else if (/[\])]$/.test(tokens[tokens.length - 1]) || /^".*"|\d+|true|false$/i.test(tokens[tokens.length - 1])) {
         // After a complete value or closing bracket/parenthesis, suggest logical operators
@@ -381,4 +519,9 @@ export function setupCompletionProvider(monaco, { fieldNames }) {
       return { suggestions };
     }
   });
+
+  return {
+    provider: completionProvider,
+    setupAutoInsertBrackets
+  };
 }

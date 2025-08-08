@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standalone Query Language Demo</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .editor-container { 
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease-in-out;
+            padding: 4px;
+            margin: 10px 0;
+            height: 60px;
+        }
+        .editor-container:hover {
+            border-color: #b0b8c1;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+        }
+        .editor-container.focused {
+            border-color: #0366d6;
+            box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1);
+            outline: none;
+        }
+        .editor-container .monaco-editor {
+            border: none !important;
+            background: transparent !important;
+        }
+        .instructions {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #0066cc;
+            margin-bottom: 20px;
+        }
+        h3 { margin-top: 0; }
+        .test-cases {
+            margin: 10px 0;
+        }
+        .test-cases li { margin: 5px 0; }
+    </style>
+    <!-- Monaco Editor CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/monaco-editor@0.34.1/min/vs/editor/editor.main.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Standalone Query Language Demo</h1>
+        
+        <div class="instructions">
+            <h3>✨ Features to Test:</h3>
+            <ul class="test-cases">
+                <li><strong>Field Completion:</strong> Type field names and see suggestions</li>
+                <li><strong>Auto-Insert Brackets:</strong> Type "category IN " (with space) → brackets auto-insert</li>
+                <li><strong>String Fields:</strong> productName (no values) vs category (with values)</li>
+                <li><strong>Number/Boolean:</strong> price, inStock fields with appropriate suggestions</li>
+                <li><strong>Validation:</strong> Real-time error checking and warnings</li>
+                <li><strong>Horizontal Scroll:</strong> Type long queries to see scrolling</li>
+            </ul>
+        </div>
+
+        <h3>🛒 Product Query Editor</h3>
+        <p>Try: <code>category IN ["Electronics", "Books"]</code> or <code>productName = "My Product"</code></p>
+        <div id="product-editor" class="editor-container"></div>
+
+        <h3>👥 User Query Editor</h3>
+        <p>Try: <code>name IN ["Alice", "Bob"] AND active = true</code></p>
+        <div id="user-editor" class="editor-container"></div>
+
+        <h3>📄 Generated Query Results</h3>
+        <div id="results" style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
+            <p><strong>Product Query:</strong> <span id="product-result">Start typing...</span></p>
+            <p><strong>User Query:</strong> <span id="user-result">Start typing...</span></p>
+        </div>
+    </div>
+
+    <!-- Monaco Editor JS -->
+    <script src="https://unpkg.com/monaco-editor@0.34.1/min/vs/loader.js"></script>
+    <!-- Our standalone query-language bundle -->
+    <script src="./dist/vanilla/query-language.js"></script>
+    
+    <script>
+        require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.34.1/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            // Field definitions
+            const productFields = {
+                productId: { type: 'number' },
+                productName: { type: 'string' }, // No predefined values - free text
+                category: { type: 'string', values: ['Electronics', 'Books', 'Clothing', 'Sports'] },
+                inStock: { type: 'boolean' },
+                price: { type: 'number', range: { min: 0, max: 10000 } }
+            };
+
+            const userFields = {
+                id: { type: 'number' },
+                name: { type: 'string', values: ['Alice', 'Bob', 'Charlie', 'Diana'] },
+                active: { type: 'boolean' },
+                role: { type: 'string', values: ['admin', 'user', 'guest'] }
+            };
+
+            // Access our standalone query language API
+            const { createQueryEditor } = window.awesomeEditor['query-language'];
+
+            // Create product editor
+            const productContainer = document.getElementById('product-editor');
+            const { editor: productEditor, model: productModel } = createQueryEditor(monaco, productContainer, {
+                fieldNames: productFields,
+                placeholder: 'Enter product query...'
+            });
+
+            // Create user editor
+            const userContainer = document.getElementById('user-editor');
+            const { editor: userEditor, model: userModel } = createQueryEditor(monaco, userContainer, {
+                fieldNames: userFields,
+                placeholder: 'Enter user query...'
+            });
+
+            // Add focus management for styling
+            productEditor.onDidFocusEditorWidget(() => {
+                productContainer.classList.add('focused');
+            });
+            productEditor.onDidBlurEditorWidget(() => {
+                productContainer.classList.remove('focused');
+            });
+
+            userEditor.onDidFocusEditorWidget(() => {
+                userContainer.classList.add('focused');
+            });
+            userEditor.onDidBlurEditorWidget(() => {
+                userContainer.classList.remove('focused');
+            });
+
+            // Live query result updates
+            productModel.onDidChangeContent(() => {
+                document.getElementById('product-result').textContent = productModel.getValue() || 'Start typing...';
+            });
+
+            userModel.onDidChangeContent(() => {
+                document.getElementById('user-result').textContent = userModel.getValue() || 'Start typing...';
+            });
+
+            console.log('🚀 Standalone Query Language Demo loaded successfully!');
+            console.log('✅ No module loader dependencies!');
+            console.log('✅ All features included in single file!');
+        });
+    </script>
+</body>
+</html>

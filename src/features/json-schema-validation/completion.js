@@ -44,7 +44,6 @@ export class CompletionProvider {
           ? val.trim().split(/\s+/)
           : [];
 
-        debugger; // Browser will pause here when you trigger completions
         const pattern = this.tokenValidator.getPatternByPath(this.tokenValidator.schema, property.schemaPath);
         const tokens = pattern ? this.tokenValidator.extractNamesFromPattern(pattern) : [];
 

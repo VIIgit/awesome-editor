@@ -1,61 +1,66 @@
 import * as monaco from 'monaco-editor';
-import { setupQueryLanguage } from '../../src/features/query-language';
-import './styles.css';
+import { createQueryEditor } from '../../src/features/query-language';
 
-const fieldNames = {
+
+// Define field schemas for different query editors
+const userFields = {
   id: { type: 'number' },
   name: { type: 'string', values: ['Alice', 'Bob', 'Charlie'] },
   groupName: { type: 'string', values: ['Admin', 'User', 'Guest'] },
-  active: { type: 'boolean' },
-  TE: { type: 'string' }
+  active: { type: 'boolean' }
 };
 
+const productFields = {
+  productId: { type: 'number' },
+  productName: { type: 'string' },
+  category: { type: 'string', values: ['Electronics', 'Books', 'Clothing'] },
+  inStock: { type: 'boolean' },
+  price: { type: 'number' }
+};
 
-// Initialize query language support
-const { languageId } = setupQueryLanguage(monaco, { fieldNames });
+// Use a self-executing function to initialize once
+(() => {
+  if (!window.editorInitialized) {
+    window.editorInitialized = true;
+    initializeEditors();
+  }
+})();
 
-// Create editor model
-const model = monaco.editor.createModel('', languageId);
-
-// Get the root container and clean up any existing content
-const rootContainer = document.getElementById('container');
-rootContainer.innerHTML = ''; // Clear any existing content
-
-// Create editor directly in the root container
-const editor = monaco.editor.create(rootContainer, {
-  model,
-  language: languageId,
-  theme: 'queryTheme',
-  lineNumbers: 'off',
-  minimap: { enabled: false },
-  scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
-  overviewRulerLanes: 0,
-  lineDecorationsWidth: 0,
-  lineNumbersMinChars: 0,
-  folding: false,
-  scrollBeyondLastLine: false,
-  wordWrap: 'off',
-  renderLineHighlight: 'none',
-  overviewRulerBorder: false,
-  automaticLayout: false, // Disable automatic layout
-  fixedOverflowWidgets: true, // Fix overflow widgets positioning
-  placeholder: 'Enter query here (e.g., id > 5 AND active = true)'
-})
-  .onKeyDown((e) => {
-    // Prevent Enter key from adding newlines
-    if (e.code === 'Enter') e.preventDefault();
-  });
-/*
-// Manual layout handling
-const resizeObserver = new ResizeObserver(() => {
-  // Debounce the layout call
-  if (editor) {
-    requestAnimationFrame(() => {
-      editor.layout();
+function initializeEditors() {
+  // Create user query editor
+  const userQueryField = document.getElementById('query-inputfield-1');
+  if (userQueryField) {
+    const { editor } = createQueryEditor(monaco, userQueryField, {
+      fieldNames: userFields,
+      placeholder: 'Enter user query (e.g., id > 5 AND active = true)'
+    });
+    
+    // Add modern input field focus/blur behavior
+    editor.onDidFocusEditorWidget(() => {
+      userQueryField.classList.add('focused');
+    });
+    
+    editor.onDidBlurEditorWidget(() => {
+      userQueryField.classList.remove('focused');
     });
   }
-});
 
-// Observe container size changes
-resizeObserver.observe(rootContainer);
-*/
+  // Create product query editor
+  const productQueryField = document.getElementById('query-inputfield-2');
+  if (productQueryField) {
+    const { editor } = createQueryEditor(monaco, productQueryField, {
+      fieldNames: productFields,
+      placeholder: 'Enter product query (e.g., price < 100 AND inStock = true)'
+    });
+    
+    // Add modern input field focus/blur behavior
+    editor.onDidFocusEditorWidget(() => {
+      productQueryField.classList.add('focused');
+    });
+    
+    editor.onDidBlurEditorWidget(() => {
+      productQueryField.classList.remove('focused');
+    });
+  }
+
+}

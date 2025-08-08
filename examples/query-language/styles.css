@@ -1,16 +1,25 @@
-.monaco-editor {
-  height: 20px !important;
-  border: 1px solid #ccc;
-  padding: 5px 10px;
-  background: white;
+/* Modern text input styling for query input fields */
+.query-inputfield {
+  padding: 10px 5px 4px 10px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+  width: 300px;
 }
 
-#container {
-  width: 700px;
-  margin: 2px auto;
-  height: 32px;
-  display: flex;
-  align-items: center;
+.query-inputfield:hover {
+  border-color: #b0b8c1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
+.query-inputfield.focused {
+  border-color: #123a67;
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1);
+  outline: none;
+}
 
+.query-inputfield .monaco-editor {
+  height: 22px !important;
+}

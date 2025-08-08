@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Table Example</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Smart Table Example</h1>
+    <p>Enter a query to filter the table below. Examples:</p>
+    <div class="smart-table-toolbar">
+      <div id="editor-container" style="flex-grow: 1;"></div>
+      <select id="group-by">
+        <option value="">Group by...</option>
+      </select>
+    </div>
+    <div id="error-message" class="error-message"></div>
+    <div class="smart-table-container">
+      <table id="data-table" class="smart-table"></table>
+    </div>
+  </div>
+</body>
+</html>

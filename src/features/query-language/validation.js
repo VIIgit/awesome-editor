@@ -4,7 +4,16 @@
  * @param {object} options Configuration options
  * @param {object} options.fieldNames The field name definitions
  */
-export function setupValidation(monaco, { fieldNames }) {
+export function setupValidation(monaco, { fieldNames, languageId }) {
+  // Prevent duplicate validation setup for the same language ID
+  if (monaco._validationSetup && monaco._validationSetup[languageId]) {
+    return monaco._validationSetup[languageId];
+  }
+  
+  if (!monaco._validationSetup) {
+    monaco._validationSetup = {};
+  }
+
   // Cache for tokenization and validation results
   const tokenCache = new Map();
   const validationCache = new Map();
@@ -18,8 +27,8 @@ export function setupValidation(monaco, { fieldNames }) {
     }
 
     const tokens = [];
-    // Enhanced regex to also capture potential unclosed quotes and escaped quotes
-    const re = /([()\[\]]|!=|>=|<=|=|>|<|IN|AND|OR|,|"(?:[^"\\]|\\.)*(?:"|$)|[-]?\d*\.?\d+|true|false|\w+)/gi;
+    // Enhanced regex - put longer patterns first and use word boundaries for keywords
+    const re = /([()\[\]]|!=|>=|<=|=|>|<|\bIN\b|\bAND\b|\bOR\b|,|"(?:[^"\\]|\\.)*(?:"|$)|[-]?\d*\.?\d+|\btrue\b|\bfalse\b|\w+)/gi;
     let match;
     
     while ((match = re.exec(str)) !== null) {
@@ -55,19 +64,24 @@ export function setupValidation(monaco, { fieldNames }) {
     if (/^".*"$/.test(value)) return 'string';
     if (/^"/.test(value)) return 'unclosed-string';
     if (/^(true|false)$/i.test(value)) return 'boolean';
-    if (/^(AND|OR|IN)$/i.test(value)) return 'keyword';
+    if (/^(AND|OR)$/i.test(value)) return 'keyword';
+    if (value === 'IN') return 'keyword'; // Case-sensitive check for IN operator
     if (/^[=!<>]=?$/.test(value)) return 'operator';
     if (/^[\[\](),]$/.test(value)) return 'punctuation';
     return 'identifier';
   }
 
-  // Helper to find the field name before IN operator
-  function findFieldBeforeIN(tokens, startIndex) {
-    for (let i = startIndex; i >= 0; i--) {
-      if (tokens[i].value.toUpperCase() === 'IN') {
-        if (i > 0 && fieldNames[tokens[i - 1].value]) {
-          return tokens[i - 1].value;
-        }
+  // Helper function to find the field name before an IN operator
+  function findFieldBeforeIN(tokens, inStartIndex) {
+    // Walk backwards from the IN token to find the field name
+    for (let i = inStartIndex - 1; i >= 0; i--) {
+      const token = tokens[i];
+      // Check if it's a valid field name (identifier that matches our field names)
+      if (token.type === 'identifier' && fieldNames[token.value]) {
+        return token.value;
+      }
+      // Stop if we hit another operator or the start
+      if (token.type === 'operator' || i === 0) {
         break;
       }
     }
@@ -168,11 +182,61 @@ export function setupValidation(monaco, { fieldNames }) {
   // Helper to validate IN list structure and values
   function validateInList(tokens, startIndex, markers) {
     let inList = false;
-    let currentListField = null;
-    let currentListValues = new Set();
     let valueCount = 0;
     let hasTrailingComma = false;
     let bracketBalance = 0;
+    let arrayStart = -1;
+
+    // Store values and their positions
+    let values = [];
+
+    // Find the field name associated with this IN list
+    const currentListField = findFieldBeforeIN(tokens, startIndex);
+    const fieldDef = currentListField ? fieldNames[currentListField] : null;
+    let hasErrors = false;
+
+    // Function to check for duplicates in the collected values
+    function checkForDuplicates() {
+      for (let i = 0; i < values.length; i++) {
+        for (let j = i + 1; j < values.length; j++) {
+          const a = values[i];
+          const b = values[j];
+          
+          let isDuplicate = false;
+          if (a.type === 'number' && b.type === 'number') {
+            // Compare numbers with fixed precision
+            isDuplicate = Number(a.value).toFixed(10) === Number(b.value).toFixed(10);
+          } else {
+            // Direct comparison for strings and booleans
+            isDuplicate = a.value === b.value;
+          }
+
+          if (isDuplicate) {
+            // Mark the first occurrence
+            markers.push({
+              severity: monaco.MarkerSeverity.Error,
+              message: 'This value is duplicated later in the list',
+              startLineNumber: 1,
+              startColumn: a.token.start + 1,
+              endLineNumber: 1,
+              endColumn: a.token.end + 1
+            });
+
+            // Mark the duplicate
+            markers.push({
+              severity: monaco.MarkerSeverity.Error,
+              message: `Duplicate value ${b.value} in IN list`,
+              startLineNumber: 1,
+              startColumn: b.token.start + 1,
+              endLineNumber: 1,
+              endColumn: b.token.end + 1
+            });
+
+            hasErrors = true;
+          }
+        }
+      }
+    }
 
     for (let i = startIndex; i < tokens.length; i++) {
       const token = tokens[i];
@@ -188,10 +252,11 @@ export function setupValidation(monaco, { fieldNames }) {
             endLineNumber: 1,
             endColumn: token.end + 1
           });
-          return false;
+          hasErrors = true;
         }
         inList = true;
         bracketBalance++;
+        arrayStart = token.start;
         continue;
       }
 
@@ -199,58 +264,12 @@ export function setupValidation(monaco, { fieldNames }) {
 
       if (value === ']') {
         bracketBalance--;
-        if (bracketBalance < 0) {
-          markers.push({
-            severity: monaco.MarkerSeverity.Error,
-            message: 'Unmatched closing bracket',
-            startLineNumber: 1,
-            startColumn: token.start + 1,
-            endLineNumber: 1,
-            endColumn: token.end + 1
-          });
-          return false;
-        }
-        
-        if (hasTrailingComma) {
-          markers.push({
-            severity: monaco.MarkerSeverity.Error,
-            message: 'Trailing comma in IN list',
-            startLineNumber: 1,
-            startColumn: tokens[i-1].start + 1,
-            endLineNumber: 1,
-            endColumn: tokens[i-1].end + 1
-          });
-          return false;
-        }
-
-        if (valueCount === 0) {
-          markers.push({
-            severity: monaco.MarkerSeverity.Error,
-            message: 'Empty IN list. Must contain at least one value.',
-            startLineNumber: 1,
-            startColumn: token.start + 1,
-            endLineNumber: 1,
-            endColumn: token.end + 1
-          });
-          return false;
-        }
-
-        inList = false;
-        return true;
+        // Check for duplicate values before exiting
+        checkForDuplicates();
+        break;
       }
 
       if (value === ',') {
-        if (i === startIndex + 1 || tokens[i-1].value === ',') {
-          markers.push({
-            severity: monaco.MarkerSeverity.Error,
-            message: 'Empty element in IN list',
-            startLineNumber: 1,
-            startColumn: token.start + 1,
-            endLineNumber: 1,
-            endColumn: token.end + 1
-          });
-          return false;
-        }
         hasTrailingComma = true;
         continue;
       }
@@ -258,22 +277,41 @@ export function setupValidation(monaco, { fieldNames }) {
       hasTrailingComma = false;
       if (['string', 'number', 'boolean'].includes(token.type)) {
         valueCount++;
+        
+        // Check for allowed values if field has specific values defined
+        if (fieldDef && fieldDef.values && fieldDef.type === 'string' && token.type === 'string') {
+          // Remove quotes from string value to compare with allowed values
+          const stringValue = token.value.slice(1, -1);
+          if (!fieldDef.values.includes(stringValue)) {
+            let message;
+            if (fieldDef.values.length <= 3) {
+              // Show all values if there are 10 or fewer
+              message = `Value "${stringValue}" is not one of the allowed values: [${fieldDef.values.join(', ')}]`;
+            } else {
+              // Show first few values and indicate there are more
+              const preview = fieldDef.values.slice(0, 3).join(', ');
+              message = `Value "${stringValue}" is not one of the allowed values. Expected one of: ${preview}... (${fieldDef.values.length} total values)`;
+            }
+            markers.push({
+              severity: monaco.MarkerSeverity.Warning,
+              message: message,
+              startLineNumber: 1,
+              startColumn: token.start + 1,
+              endLineNumber: 1,
+              endColumn: token.end + 1
+            });
+          }
+        }
+        
+        values.push({
+          value: token.value,
+          token: token,
+          type: token.type
+        });
       }
     }
 
-    if (bracketBalance > 0) {
-      markers.push({
-        severity: monaco.MarkerSeverity.Error,
-        message: 'Unclosed IN list. Missing closing bracket.',
-        startLineNumber: 1,
-        startColumn: tokens[startIndex].start + 1,
-        endLineNumber: 1,
-        endColumn: tokens[startIndex].end + 1
-      });
-      return false;
-    }
-
-    return true;
+    return !hasErrors;
   }
 
   // Track the last validation state
@@ -295,21 +333,38 @@ export function setupValidation(monaco, { fieldNames }) {
     return hash;
   }
 
+  // Helper to check if position is in the middle of complete content
+  function isPositionInMiddle(model, position) {
+    const lineCount = model.getLineCount();
+    const lastLineLength = model.getLineLength(lineCount);
+    
+    return position.lineNumber < lineCount || 
+           (position.lineNumber === lineCount && position.column < lastLineLength);
+  }
+
+  // Helper to get tokens up to position
+  function getTokensUpToPosition(tokens, position, model) {
+    if (!position) return tokens;
+    
+    const offset = model.getOffsetAt(position);
+    return tokens.filter(token => token.end <= offset);
+  }
+
   // Main validation function with incremental updates
-  function validateQuery(model) {
+  function validateQuery(model, position) {
     const value = model.getValue();
     
     // Quick check if content hasn't changed
     if (value === lastValidationState.content) {
-      monaco.editor.setModelMarkers(model, 'querylang', lastValidationState.markers);
+      monaco.editor.setModelMarkers(model, languageId, lastValidationState.markers);
       return;
     }
 
     // Check cache for identical content
     const validationHash = getValidationHash(value);
     const cached = validationCache.get(validationHash);
-    if (cached) {
-      monaco.editor.setModelMarkers(model, 'querylang', cached);
+    if (cached && !position) {  // Only use cache if we don't need position-aware validation
+      monaco.editor.setModelMarkers(model, languageId, cached);
       lastValidationState = {
         content: value,
         tokens: tokenCache.get(value) || [],
@@ -326,6 +381,18 @@ export function setupValidation(monaco, { fieldNames }) {
     function addError(token, message) {
       markers.push({
         severity: monaco.MarkerSeverity.Error,
+        message,
+        startLineNumber: 1,
+        startColumn: token.start + 1,
+        endLineNumber: 1,
+        endColumn: token.end + 1
+      });
+    }
+
+    // Helper to add warning marker
+    function addWarning(token, message) {
+      markers.push({
+        severity: monaco.MarkerSeverity.Warning,
         message,
         startLineNumber: 1,
         startColumn: token.start + 1,
@@ -389,7 +456,10 @@ export function setupValidation(monaco, { fieldNames }) {
 
       // Reset expression state after logical operators
       if (['AND', 'OR'].includes(current)) {
-        if (!expressionState.hasValue && !expressionState.inParentheses) {
+        // Check if we have a complete expression before the logical operator
+        const hasCompleteExpression = expressionState.hasValue || 
+                                    (prev === ']' && tokens.slice(0, index).some(t => t.value.toUpperCase() === 'IN'));
+        if (!hasCompleteExpression && !expressionState.inParentheses) {
           addError(token, 'Incomplete expression before logical operator');
         }
         expressionState.reset();
@@ -406,11 +476,12 @@ export function setupValidation(monaco, { fieldNames }) {
       }
 
       // Enhanced operator validation
-      if (['=', '!=', '>', '<', '>=', '<=', 'IN'].includes(current)) {
+      if (['=', '!=', '>', '<', '>=', '<='].includes(current)) {
         if (!expressionState.hasField) {
           addError(token, 'Operator without a preceding field name');
         }
         expressionState.hasOperator = true;
+        expressionState.hasValue = false; // Reset value state when we see an operator
 
         // Validate operator compatibility with field type
         if (expressionState.currentField) {
@@ -419,6 +490,16 @@ export function setupValidation(monaco, { fieldNames }) {
             addError(token, `Operator ${current} can only be used with number fields`);
           }
         }
+      }
+
+      // Special handling for IN operator (case-sensitive, uppercase only)
+      if (token.value === 'IN') {
+        if (!expressionState.hasField) {
+          addError(token, 'IN operator without a preceding field name');
+        }
+        expressionState.hasOperator = true;
+        expressionState.hasValue = false;
+        validateInList(tokens, index + 1, markers);
       }
 
       // Value validation with type checking
@@ -433,6 +514,24 @@ export function setupValidation(monaco, { fieldNames }) {
               addError(token, `Value must be a number for field '${expressionState.currentField}'`);
             } else if (field.type === 'boolean' && token.type !== 'boolean') {
               addError(token, `Value must be a boolean for field '${expressionState.currentField}'`);
+            } else {
+              // Check for allowed values if field has specific values defined
+              if (field.values && field.type === 'string' && token.type === 'string') {
+                // Remove quotes from string value to compare with allowed values
+                const stringValue = token.value.slice(1, -1);
+                if (!field.values.includes(stringValue)) {
+                  let message;
+                  if (field.values.length <= 2) {
+                    // Show all values if there are 10 or fewer
+                    message = `Value "${stringValue}" is not one of the allowed values: [${field.values.join(', ')}]`;
+                  } else {
+                    // Show first few values and indicate there are more
+                    const preview = field.values.slice(0, 5).join(', ');
+                    message = `Value "${stringValue}" is not one of the allowed values. Expected one of: ${preview}... (${field.values.length} total values)`;
+                  }
+                  addWarning(token, message);
+                }
+              }
             }
           }
         }
@@ -455,8 +554,19 @@ export function setupValidation(monaco, { fieldNames }) {
 
     if (tokens.length > 0 && !expressionState.hasValue && !expressionState.inParentheses) {
       const lastToken = tokens[tokens.length - 1];
+      // Only mark as incomplete if we're at the actual end of content
+      // or if the last token is an operator/identifier and there's nothing valid after it
       if (lastToken.type === 'identifier' || lastToken.type === 'operator') {
-        addError(lastToken, 'Incomplete expression at end of query');
+        if (!position || !isPositionInMiddle(model, position)) {
+          addError(lastToken, 'Incomplete expression at end of query');
+        } else {
+          // Check if there's valid content after the cursor
+          const fullTokens = tokenize(value);
+          const tokensAfterCursor = fullTokens.filter(t => t.start >= model.getOffsetAt(position));
+          if (!tokensAfterCursor.some(t => t.type === 'string' || t.type === 'number' || t.type === 'boolean')) {
+            addError(lastToken, 'Incomplete expression at end of query');
+          }
+        }
       }
     }
 
@@ -473,27 +583,33 @@ export function setupValidation(monaco, { fieldNames }) {
       hasErrors: markers.length > 0
     };
 
-    // Set markers
-    monaco.editor.setModelMarkers(model, 'querylang', markers);
+    // Set markers using the specific language ID
+    monaco.editor.setModelMarkers(model, languageId, markers);
   }
 
   // Set up model change listener with incremental validation
   let validateTimeout = null;
   let disposable = monaco.editor.onDidCreateModel(model => {
-    if (model.getLanguageId() === 'querylang') {
+    if (model.getLanguageId() === languageId) {
       // Initial validation
       validateQuery(model);
 
       // Set up change listener with debouncing
-      const changeDisposable = model.onDidChangeContent(() => {
+      const changeDisposable = model.onDidChangeContent((e) => {
         // Clear previous timeout
         if (validateTimeout) {
           clearTimeout(validateTimeout);
         }
 
+        // Get the cursor position from the last change
+        const position = e.changes[e.changes.length - 1].rangeOffset ? {
+          lineNumber: model.getPositionAt(e.changes[e.changes.length - 1].rangeOffset).lineNumber,
+          column: model.getPositionAt(e.changes[e.changes.length - 1].rangeOffset).column
+        } : null;
+
         // Set new timeout for validation
         validateTimeout = setTimeout(() => {
-          validateQuery(model);
+          validateQuery(model, position);
         }, 300); // 300ms debounce
       });
 
@@ -508,12 +624,21 @@ export function setupValidation(monaco, { fieldNames }) {
   });
 
   // Return dispose function
-  return {
+  const disposeFunction = {
     dispose: () => {
       if (validateTimeout) {
         clearTimeout(validateTimeout);
       }
       disposable.dispose();
+      // Clean up the registration tracker
+      if (monaco._validationSetup && monaco._validationSetup[languageId]) {
+        delete monaco._validationSetup[languageId];
+      }
     }
   };
+  
+  // Store the disposal function to prevent duplicate setup
+  monaco._validationSetup[languageId] = disposeFunction;
+  
+  return disposeFunction;
 }

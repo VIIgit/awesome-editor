@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vanilla Example</title>
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://unpkg.com/monaco-editor@latest/min/vs/editor/editor.main.css">
+</head>
+<body>
+    <div id="editor" style="height:600px;"></div>
+    
+    <script src="https://unpkg.com/monaco-editor@latest/min/vs/loader.js"></script>
+    <script>
+        require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@latest/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            // Create editor
+            const editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '{\n  "name": "John",\n  "age": 30\n}',
+                language: 'json',
+                theme: 'vs-light',
+                minimap: { enabled: false }
+            });
+
+            // Load and use the json-schema-validation feature
+            const script = document.createElement('script');
+            script.src = '../dist/vanilla/json-schema-validation.js';
+            script.onload = function() {
+                const schema = {
+                    type: 'object',
+                    properties: {
+                        name: { type: 'string', enum: ['John', 'Jane', 'Bob'] },
+                        age: { type: 'number', minimum: 0, maximum: 120 }
+                    },
+                    required: ['name', 'age']
+                };
+
+                const properties = [
+                    { field: 'name', jsonPath: ['name'] },
+                    { field: 'age', jsonPath: ['age'] }
+                ];
+
+                // Use the feature
+                window.awesomeEditor['json-schema-validation'].setupJsonValidation(editor, {
+                    schema,
+                    properties
+                });
+
+                window.awesomeEditor['json-schema-validation'].setupHoverProvider({
+                    wordMap: (name) => ({ name, details: 'A person name' })
+                });
+            };
+            document.head.appendChild(script);
+        });
+    </script>
+</body>
+</html>
