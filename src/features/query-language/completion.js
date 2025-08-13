@@ -90,7 +90,7 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
   const fieldPattern = new RegExp(`^(${Object.keys(fieldNames).join('|')})$`);
   const operPattern = /^(=|!=|>=|<=|>|<)$/i;
   const inPattern = /^IN$/; // Case-sensitive IN operator
-  const logicalPattern = /^(AND|OR)$/i;
+  const logicalPattern = /^(AND|OR)$/; // Case-sensitive logical operators
   const fieldList = Object.keys(fieldNames);
   
 

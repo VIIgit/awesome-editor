@@ -2,6 +2,8 @@
 
 The Smart Table feature enhances HTML tables with powerful query filtering capabilities using Monaco Editor integration. It allows users to filter table data using a simple yet powerful query language.
 
+![Smart Table Screenshot](./smart-table.png)
+
 ## Installation
 
 ### Module Import (ES6/Webpack)

@@ -108,9 +108,8 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
         if (wordMatch) {
           value = wordMatch[0];
           
-          // Check for keywords
-          const upperValue = value.toUpperCase();
-          if (['AND', 'OR'].includes(upperValue)) {
+          // Check for keywords (case-sensitive for logical operators)
+          if (['AND', 'OR'].includes(value)) { // Case-sensitive check
             type = 'keyword';
           } else if (value === 'IN') { // Case-sensitive
             type = 'keyword';
@@ -162,7 +161,7 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
     if (/^"/.test(value) && !value.endsWith('"')) return 'unclosed-string';
     if (/^(true|false)$/i.test(value)) return 'boolean';
     if (/^(null)$/i.test(value)) return 'null';
-    if (/^(AND|OR)$/i.test(value)) return 'keyword';
+    if (/^(AND|OR)$/.test(value)) return 'keyword'; // Case-sensitive check for logical operators
     if (value === 'IN') return 'keyword'; // Case-sensitive check for IN operator
     if (/^[=!<>]=?$/.test(value)) return 'operator';
     if (/^[\[\](),]$/.test(value)) return 'punctuation';
@@ -579,8 +578,8 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
         expressionState.inParentheses = expressionState.parenthesesBalance > 0;
       }
 
-      // Reset expression state after logical operators
-      if (['AND', 'OR'].includes(current)) {
+      // Reset expression state after logical operators (only uppercase ones are valid)
+      if (['AND', 'OR'].includes(token.value)) {
         // Check if we have a complete expression before the logical operator
         const hasCompleteExpression = expressionState.hasValue || 
                                     (prev === ']' && tokens.slice(0, index).some(t => t.value.toUpperCase() === 'IN'));
@@ -591,8 +590,28 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
         return;
       }
 
-      // Enhanced field name validation
-      if (token.type === 'identifier' && !['AND', 'OR', 'IN', 'TRUE', 'FALSE', 'NULL'].includes(current)) {
+      // Check if we're expecting a logical operator after a complete expression
+      if (token.type === 'identifier' && expressionState.hasValue) {
+        // We just completed an expression (field = value), so we expect a logical operator
+        if (['and', 'or'].includes(token.value.toLowerCase())) {
+          // This is a logical operator but in wrong case
+          addError(token, `Logical operator must be uppercase. Use '${token.value.toUpperCase()}' instead of '${token.value}'.`);
+          return;
+        } else if (!['AND', 'OR'].includes(token.value.toUpperCase())) {
+          // This is not a logical operator at all, but we expected one
+          addError(token, `Expected logical operator (AND/OR) after complete expression, but found '${token.value}'.`);
+          return;
+        }
+      }
+
+      // Enhanced field name validation      
+      if (token.type === 'identifier' && !['AND', 'OR', 'IN', 'TRUE', 'FALSE', 'NULL'].includes(token.value)) {
+        // Check for lowercase logical operators first
+        if (['and', 'or'].includes(token.value.toLowerCase()) && token.value !== token.value.toUpperCase()) {
+          addError(token, `Logical operator must be uppercase. Use '${token.value.toUpperCase()}' instead of '${token.value}'.`);
+          return;
+        }
+        
         // Check if this is a valid field name
         if (!isValidField(token.value)) {
           // Check if we're in a position where a field name is expected
