@@ -12,7 +12,9 @@ export function setupEditorTheme(monaco) {
       { token: 'boolean', foreground: '5f5757', fontStyle: 'bold' },
       { token: 'number', foreground: '5f5757', fontStyle: 'bold' },
       { token: 'string', foreground: '5f5757', fontStyle: 'bold' },
-      { token: 'keyword', foreground: '007acc', fontStyle: 'bold' }
+      { token: 'string.search', foreground: '5f5757', fontStyle: 'bold' },
+      { token: 'keyword', foreground: '007acc', fontStyle: 'bold' },
+      { token: 'keyword.null', foreground: '5f5757', fontStyle: 'bold' }
     ],
     colors: {
       'editor.foreground': '#5f5757',

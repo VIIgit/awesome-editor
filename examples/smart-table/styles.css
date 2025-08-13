@@ -3,20 +3,7 @@
   margin: 0 auto;
   padding: 20px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
-
-.error-message {
-  color: #dc3545;
-  margin: 10px 0;
-  padding: 10px;
-  border-radius: 4px;
-  display: none;
-}
-
-.error-message:not(:empty) {
-  display: block;
-  background-color: #fff3f3;
-  border: 1px solid #ffd7d7;
+  overflow-x: hidden; /* Prevent horizontal overflow */
 }
 
 .example-buttons {
@@ -46,47 +33,76 @@ h1 {
   color: #2c3e50;
 }
 
-/* Query editor styles */
-#editor-container {
+/* Query editor styles - matching query-language example */
+.smart-table-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
   margin-bottom: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
 }
 
-.monaco-editor {
-  padding: 4px 8px;
+/* Modern text input styling for query input fields */
+.query-inputfield {
+  padding: 10px 5px 4px 10px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+  width: 300px;
 }
 
-.monaco-editor .cursor {
-  border-left-width: 2px !important;
+.query-inputfield:hover {
+  border-color: #b0b8c1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
-/* Table styles */
+.query-inputfield.focused {
+  border-color: #123a67;
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1);
+  outline: none;
+}
+
+.query-inputfield.error {
+  border-color: rgba(220, 53, 69, 0.6);
+}
+
+.query-inputfield.error:hover {
+  border-color: rgba(200, 35, 51, 0.6);
+}
+
+.query-inputfield.error.focused {
+  border-color: rgba(220, 53, 69, 0.6);
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.25), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.query-inputfield .monaco-editor {
+  height: 22px !important;
+}
+
+/* Table styles - responsive */
 .smart-table {
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   margin-top: 1rem;
   background: white;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   border-radius: 4px;
   overflow: hidden;
-}
-
-.smart-table thead {
-  background: #f8f9fa;
+  table-layout: fixed; /* Enable responsive column distribution */
 }
 
 .smart-table th,
 .smart-table td {
-  padding: 12px;
+  padding: 8px 12px; /* Reduced padding for better fit */
   text-align: left;
   border-bottom: 1px solid #dee2e6;
-}
-
-.smart-table th {
-  font-weight: 600;
-  color: #495057;
-  white-space: nowrap;
+  word-wrap: break-word; /* Allow text wrapping */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Show ellipsis for overflow text */
+  white-space: nowrap; /* Prevent text wrapping initially */
+  max-width: 0; /* Allow flexible column sizing */
 }
 
 .smart-table tbody tr:hover {
@@ -117,30 +133,190 @@ h1 {
   min-width: 150px;
 }
 
-/* Table container styles */
-.smart-table-container {
-  position: relative;
-  max-height: 600px;
-  overflow: auto;
+.smart-table-toolbar .add-records-btn {
+  padding: 4px 12px;
+  border: 1px solid #007acc;
+  border-radius: 4px;
+  background: #007acc;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+
+.smart-table-toolbar .add-records-btn:hover {
+  background: #005a9e;
+  border-color: #005a9e;
+}
+
+/* Table wrapper for split header/body approach */
+.smart-table-wrapper {
   border: 1px solid #dee2e6;
   border-radius: 4px;
+  overflow: hidden;
+  background: white; /* Solid background for blur backdrop */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.smart-table {
-  margin-top: 0;
+/* Filter toolbar inside the table wrapper */
+.smart-table-filter-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background: rgba(248, 249, 250, 0.95);
+  border-bottom: 1px solid rgba(222, 226, 230, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.smart-table-filter-toolbar #query-input-container {
+  flex: 1;
+  min-width: 200px;
+}
+
+.smart-table-filter-toolbar #group-by {
+  min-width: 140px;
+}
+
+.smart-table-header-container {
+  background: rgba(255, 255, 255, 0.9); /* Glass-like white background */
+  border-bottom: 1px solid rgba(222, 226, 230, 0.8);
+  backdrop-filter: blur(20px) saturate(180%); /* Enhanced blur with saturation */
+  -webkit-backdrop-filter: blur(20px) saturate(180%); /* Safari support */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth easing */
+  position: relative;
+  z-index: 10;
+}
+
+.smart-table-header-container.scrolled {
+  background: rgba(255, 255, 255, 0.95); /* More opaque when scrolled */
+  backdrop-filter: blur(25px) saturate(180%); /* Stronger blur when scrolled */
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  
+}
+
+.smart-table-header-container .smart-table thead {
+  position: static; /* Remove sticky since header is separate */
+  background: transparent; /* Let the container background show through */
+}
+
+.smart-table-header-container .smart-table th {
+  position: static; /* Remove sticky since header is separate */
+  background: transparent; /* Let the container background show through */
+  font-weight: 600;
+  color: #374151; /* Darker text for better contrast */
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: none; 
+  padding: 16px 12px; /* More padding for modern look */
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5); /* Subtle text shadow */
+}
+
+/* Table container styles - responsive design */
+.smart-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden; /* Prevent horizontal overflow */
+}
+
+/* Info section styles */
+.smart-table-info {
+  padding: 8px 12px;
+  border: 1px solid #dee2e6;
+  color: rgb(34, 33, 33);
+  border-bottom: none;
+  font-size: 14px;
+  border-radius: 4px 4px 0 0;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  text-align: right;
+}
+
+.smart-table-wrapper .smart-table-info:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.smart-table-container {
+  position: relative;
+  max-height: 400px;
+  overflow-x: auto; /* Allow horizontal scroll only when absolutely needed */
+  overflow-y: auto;
+  border: none;
+  border-radius: 0;
+  background: white; /* Ensure solid background for blur visibility */
+  width: 100%;
+}
+
+.smart-table-header-container {
+  width: 100%;
+  overflow: hidden; /* Prevent header overflow */
+}
+
+/* Enable sticky header within the container */
+.smart-table-container.scrolled .smart-table thead {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.smart-table-header-container .smart-table {
+  margin: 0;
+  border: none;
   border-radius: 0;
   box-shadow: none;
+  table-layout: fixed; /* Fix table layout for consistent column widths */
+  width: 100%; /* Ensure full width */
+  max-width: 100%; /* Prevent overflow */
+  border-collapse: separate; /* Better for glass effect */
+  border-spacing: 0;
 }
 
-.smart-table thead {
+.smart-table-body {
+  margin: 0;
+  border: none;
+  table-layout: fixed; /* Fix table layout for consistent column widths */
+  background: white; /* Solid background for blur effect visibility */
+  width: 100%; /* Ensure full width */
+  max-width: 100%; /* Prevent overflow */
+  border-collapse: separate; /* Better for precise column alignment */
+  border-spacing: 0;
+}
+
+/* Enhanced styling for split table body */
+.smart-table-body tbody tr {
+  background: white;
+  transition: background-color 0.2s ease;
+}
+
+.smart-table-body tbody tr:hover {
+  background: rgba(0, 123, 255, 0.1) !important; /* Blue hover effect */
+}
+
+.smart-table thead,
+.smart-table.sticky-header thead {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 10;
   background: #f8f9fa;
+  transition: box-shadow 0.2s ease;
 }
 
 .smart-table th {
-  position: relative;
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  z-index: 10;
+}
+
+.smart-table th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  z-index: 10;
+  font-weight: 600;
+  color: #495057;
+  white-space: nowrap;
   cursor: pointer;
   user-select: none;
 }
@@ -156,26 +332,32 @@ h1 {
 
 .smart-table tr.group-header {
   position: sticky;
-  top: 41px;
-  z-index: 1;
-  background: #e9ecef;
+  top: 0; /* Stick to top of scrollable container */
+  z-index: 5; /* Below header container but above regular rows */
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .smart-table tr.group-header td {
-  padding: 8px 12px;
+  padding: 12px;
+  color: #374151;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
 .smart-table tr.group-header .group-toggle {
   display: inline-block;
-  width: 16px;
-  height: 16px;
-  line-height: 16px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
   text-align: center;
   margin-right: 8px;
-  border: 1px solid #ced4da;
-  border-radius: 2px;
+  border: 1px solid rgba(206, 212, 218, 0.8);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  transition: all 0.2s ease;
 }
 
 .smart-table tr.group-header.collapsed .group-toggle:after {
@@ -229,4 +411,178 @@ code {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+}
+
+.smart-table thead {
+  background: #f8f9fa;
+}
+
+/* Specific column width distribution for better responsive behavior */
+.smart-table .select-cell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 8px 4px;
+}
+
+/* Dynamic column styling - applied by JavaScript based on column metadata
+ * Usage: Add these classes to columns in your column definitions:
+ * 
+ * Sizes:
+ * - col-fixed-narrow: 50-80px (e.g., ID columns)
+ * - col-fixed-medium: 80-120px (e.g., numeric columns)
+ * - col-flexible-small: min 100px, flex 1 (e.g., status)
+ * - col-flexible-medium: min 120px, flex 2 (e.g., categories)
+ * - col-flexible-large: min 150px, flex 3 (e.g., names, descriptions)
+ * 
+ * Priorities (for responsive hiding):
+ * - col-priority-low: Hidden first on mobile
+ * - col-priority-medium: Hidden second on mobile  
+ * - col-priority-high: Always visible
+ * 
+ * Responsive behavior:
+ * - hidden-mobile: Hidden on screens < 768px
+ * - hidden-small: Hidden on screens < 480px
+ */
+.smart-table .col-fixed-narrow {
+  min-width: 50px;
+  max-width: 80px;
+}
+
+.smart-table .col-fixed-medium {
+  min-width: 80px;
+  max-width: 120px;
+}
+
+.smart-table .col-flexible-small {
+  min-width: 100px;
+  flex: 1;
+}
+
+.smart-table .col-flexible-medium {
+  min-width: 120px;
+  flex: 2;
+}
+
+.smart-table .col-flexible-large {
+  min-width: 150px;
+  flex: 3;
+}
+
+/* Priority classes for responsive behavior */
+.smart-table .col-priority-low {
+  /* Will be hidden first on mobile - applied by JavaScript */
+  order: 10;
+}
+
+.smart-table .col-priority-medium {
+  /* Will be hidden second on mobile - applied by JavaScript */
+  order: 5;
+}
+
+.smart-table .col-priority-high {
+  /* Will be kept visible on mobile - applied by JavaScript */
+  order: 1;
+}
+
+/* Responsive design for smaller screens - dynamic approach */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+  
+  .smart-table-toolbar {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  
+  .query-inputfield {
+    width: 100%;
+  }
+  
+  .smart-table th,
+  .smart-table td {
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+  
+  /* Dynamic responsive behavior will be handled by JavaScript */
+  .smart-table th.hidden-mobile,
+  .smart-table td.hidden-mobile {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Dynamic responsive behavior will be handled by JavaScript */
+  .smart-table th.hidden-small,
+  .smart-table td.hidden-small {
+    display: none;
+  }
+}
+
+/* Allow text wrapping for flexible columns */
+.smart-table .flexible-text {
+  white-space: normal;
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+
+/* Conditional checkbox styles */
+.smart-table.no-checkboxes .select-cell {
+  display: none;
+}
+
+/* Visual feedback for selected rows without checkboxes */
+/* Enhanced selected row styling */
+.smart-table tbody tr.selected {
+  background-color: rgba(0, 123, 255, 0.1) !important;
+  border-left: 3px solid #007bff;
+}
+
+.smart-table tbody tr.selected:hover {
+  background-color: rgba(0, 123, 255, 0.15) !important;
+}
+
+/* Last selected row (most recently selected) styling */
+.smart-table tbody tr.selected.last-selected {
+  background-color: rgba(0, 123, 255, 0.2) !important;
+  border-left: 4px solid #0056b3;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.15);
+}
+
+.smart-table tbody tr.selected.last-selected:hover {
+  background-color: rgba(0, 123, 255, 0.25) !important;
+}
+
+/* Multi-selection enhancements */
+.smart-table tbody tr {
+  cursor: pointer;
+  user-select: none; /* Prevent text selection during multi-select */
+}
+
+.smart-table tbody tr:hover {
+  background-color: rgba(0, 123, 255, 0.05) !important;
+}
+
+
+/* Hide selection hint when no multi-select */
+.smart-table.no-multiselect .smart-table-info::after {
+  display: none;
+}
+
+/* Indeterminate checkbox styling */
+.smart-table input[type="checkbox"]:indeterminate {
+  background: #007bff;
+  border-color: #007bff;
+}
+
+.smart-table input[type="checkbox"]:indeterminate::after {
+  content: "—";
+  color: white;
+  font-weight: bold;
+  position: absolute;
+  top: -2px;
+  left: 2px;
 }

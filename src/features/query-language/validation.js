@@ -27,27 +27,124 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
     }
 
     const tokens = [];
-    // Enhanced regex - put longer patterns first and use word boundaries for keywords
-    const re = /([()\[\]]|!=|>=|<=|=|>|<|\bIN\b|\bAND\b|\bOR\b|,|"(?:[^"\\]|\\.)*(?:"|$)|[-]?\d*\.?\d+|\btrue\b|\bfalse\b|\w+)/gi;
-    let match;
+    let position = 0;
     
-    while ((match = re.exec(str)) !== null) {
-      const value = match[0].trim();
-      if (!value) continue; // Skip empty matches
-
-      // Determine token type
-      let type = getTokenType(value);
-      // Special handling for unclosed strings
-      if (type === 'string' && !value.endsWith('"')) {
-        type = 'unclosed-string';
+    while (position < str.length) {
+      // Skip whitespace
+      if (/\s/.test(str[position])) {
+        position++;
+        continue;
       }
-
-      tokens.push({
-        value,
-        type,
-        start: match.index,
-        end: match.index + match[0].length
-      });
+      
+      let match = null;
+      let value = '';
+      let type = '';
+      let tokenStart = position;
+      
+      // Check for specific patterns in order of priority
+      
+      // 1. Operators (multi-character first)
+      if (str.substring(position).match(/^(!=|>=|<=)/)) {
+        const op = str.substring(position).match(/^(!=|>=|<=)/)[0];
+        value = op;
+        type = 'operator';
+        position += op.length;
+      }
+      // 2. Single character operators
+      else if (/[=<>]/.test(str[position])) {
+        value = str[position];
+        type = 'operator';
+        position++;
+      }
+      // 3. Punctuation
+      else if (/[(),\[\]]/.test(str[position])) {
+        value = str[position];
+        type = 'punctuation';
+        position++;
+      }
+      // 4. Comma
+      else if (str[position] === ',') {
+        value = ',';
+        type = 'punctuation';
+        position++;
+      }
+      // 5. Quoted strings (including unclosed ones)
+      else if (str[position] === '"') {
+        let endQuoteFound = false;
+        let stringEnd = position + 1;
+        
+        // Look for closing quote, handling escaped quotes
+        while (stringEnd < str.length) {
+          if (str[stringEnd] === '"' && str[stringEnd - 1] !== '\\') {
+            endQuoteFound = true;
+            stringEnd++;
+            break;
+          }
+          stringEnd++;
+        }
+        
+        value = str.substring(position, stringEnd);
+        type = endQuoteFound ? 'string' : 'unclosed-string';
+        position = stringEnd;
+      }
+      // 6. Numbers
+      else if (/\d/.test(str[position]) || (str[position] === '-' && /\d/.test(str[position + 1]))) {
+        const numberMatch = str.substring(position).match(/^-?\d*\.?\d+/);
+        if (numberMatch) {
+          value = numberMatch[0];
+          type = 'number';
+          position += value.length;
+        } else {
+          // Fallback - treat as identifier
+          const identifierMatch = str.substring(position).match(/^\w+/);
+          value = identifierMatch ? identifierMatch[0] : str[position];
+          type = 'identifier';
+          position += value.length;
+        }
+      }
+      // 7. Keywords and identifiers
+      else if (/[a-zA-Z_]/.test(str[position])) {
+        const wordMatch = str.substring(position).match(/^[a-zA-Z_]\w*/);
+        if (wordMatch) {
+          value = wordMatch[0];
+          
+          // Check for keywords
+          const upperValue = value.toUpperCase();
+          if (['AND', 'OR'].includes(upperValue)) {
+            type = 'keyword';
+          } else if (value === 'IN') { // Case-sensitive
+            type = 'keyword';
+          } else if (['true', 'false'].includes(value.toLowerCase())) {
+            type = 'boolean';
+          } else if (value.toLowerCase() === 'null') {
+            type = 'null';
+          } else {
+            type = 'identifier';
+          }
+          
+          position += value.length;
+        } else {
+          // Single character fallback
+          value = str[position];
+          type = 'identifier';
+          position++;
+        }
+      }
+      // 8. Fallback for any other character
+      else {
+        value = str[position];
+        type = 'identifier';
+        position++;
+      }
+      
+      if (value) {
+        tokens.push({
+          value,
+          type,
+          start: tokenStart,
+          end: position
+        });
+      }
     }
 
     // Cache the result if it's not too large (prevent memory issues)
@@ -62,8 +159,9 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
   function getTokenType(value) {
     if (/^-?\d*\.?\d+$/.test(value)) return 'number';
     if (/^".*"$/.test(value)) return 'string';
-    if (/^"/.test(value)) return 'unclosed-string';
+    if (/^"/.test(value) && !value.endsWith('"')) return 'unclosed-string';
     if (/^(true|false)$/i.test(value)) return 'boolean';
+    if (/^(null)$/i.test(value)) return 'null';
     if (/^(AND|OR)$/i.test(value)) return 'keyword';
     if (value === 'IN') return 'keyword'; // Case-sensitive check for IN operator
     if (/^[=!<>]=?$/.test(value)) return 'operator';
@@ -377,6 +475,32 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
     const markers = [];
     const tokens = tokenize(value);
 
+    // Detect if this is search mode or structured query mode
+    const hasOperators = tokens.some(token => 
+      ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR'].includes(token.value.toUpperCase())
+    );
+    
+    // If no operators found, treat as search mode (no validation needed)
+    if (!hasOperators && tokens.length > 0) {
+      // Search mode - just check for unclosed strings
+      tokens.forEach(token => {
+        if (token.type === 'unclosed-string') {
+          addError(token, 'Unclosed string literal');
+        }
+      });
+      
+      // Cache and store validation result
+      validationCache.set(validationHash, markers);
+      lastValidationState = {
+        content: value,
+        tokens,
+        markers,
+        hasErrors: markers.length > 0
+      };
+      monaco.editor.setModelMarkers(model, languageId, markers);
+      return;
+    }
+
     // Helper to add error marker
     function addError(token, message) {
       markers.push({
@@ -425,7 +549,8 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
       if (fieldCache.has(token)) {
         return fieldCache.get(token);
       }
-      const isValid = fieldNames[token] || /^[A-Z_][A-Z0-9_]*$/i.test(token);
+      // Only allow defined field names - remove the fallback regex
+      const isValid = fieldNames[token] !== undefined;
       fieldCache.set(token, isValid);
       return isValid;
     }
@@ -467,12 +592,41 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
       }
 
       // Enhanced field name validation
-      if (isValidField(token.value) && !['AND', 'OR', 'IN', 'TRUE', 'FALSE'].includes(current)) {
-        if (expressionState.hasField && !expressionState.hasValue && !['AND', 'OR'].includes(prev)) {
-          addError(token, 'Unexpected field name. Did you forget an operator or AND/OR?');
+      if (token.type === 'identifier' && !['AND', 'OR', 'IN', 'TRUE', 'FALSE', 'NULL'].includes(current)) {
+        // Check if this is a valid field name
+        if (!isValidField(token.value)) {
+          // Check if we're in a position where a field name is expected
+          const expectingField = !expressionState.hasField || 
+                               (index > 0 && ['AND', 'OR'].includes(tokens[index - 1].value.toUpperCase()));
+          
+          if (expectingField) {
+            const availableFields = Object.keys(fieldNames);
+            let suggestion = '';
+            if (availableFields.length > 0) {
+              // Find the closest matching field name
+              const closest = availableFields.find(f => 
+                f.toLowerCase().includes(token.value.toLowerCase()) ||
+                token.value.toLowerCase().includes(f.toLowerCase())
+              );
+              if (closest) {
+                suggestion = ` Did you mean '${closest}'?`;
+              } else {
+                const fieldList = availableFields.length <= 5 
+                  ? availableFields.join(', ')
+                  : availableFields.slice(0, 5).join(', ') + '...';
+                suggestion = ` Available fields: ${fieldList}`;
+              }
+            }
+            addError(token, `Unknown field name '${token.value}'.${suggestion}`);
+          }
+        } else {
+          // Valid field name
+          if (expressionState.hasField && !expressionState.hasValue && !['AND', 'OR'].includes(prev)) {
+            addError(token, 'Unexpected field name. Did you forget an operator or AND/OR?');
+          }
+          expressionState.hasField = true;
+          expressionState.currentField = token.value;
         }
-        expressionState.hasField = true;
-        expressionState.currentField = token.value;
       }
 
       // Enhanced operator validation
@@ -492,6 +646,11 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
         }
       }
 
+      // Check for unclosed strings immediately (regardless of expression state)
+      if (token.type === 'unclosed-string') {
+        addError(token, 'Unclosed string literal. Did you forget a closing quote?');
+      }
+
       // Special handling for IN operator (case-sensitive, uppercase only)
       if (token.value === 'IN') {
         if (!expressionState.hasField) {
@@ -504,11 +663,14 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
 
       // Value validation with type checking
       if ((token.type === 'string' || token.type === 'number' || token.type === 'boolean' || 
-           token.type === 'unclosed-string') && expressionState.hasOperator) {
+           token.type === 'null' || token.type === 'unclosed-string') && expressionState.hasOperator) {
         if (expressionState.currentField) {
           const field = fieldNames[expressionState.currentField];
           if (field) {
-            if (field.type === 'string' && token.type !== 'string' && token.type !== 'unclosed-string') {
+            // NULL is allowed for any field type (represents absence of value)
+            if (token.type === 'null') {
+              // NULL is valid for any field, skip type validation
+            } else if (field.type === 'string' && token.type !== 'string' && token.type !== 'unclosed-string') {
               addError(token, `Value must be a string for field '${expressionState.currentField}'`);
             } else if (field.type === 'number' && token.type !== 'number') {
               addError(token, `Value must be a number for field '${expressionState.currentField}'`);
@@ -537,6 +699,15 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
         }
         expressionState.hasValue = true;
         expressionState.lastValueToken = token;
+        
+        // Check for consecutive tokens without proper logical operators
+        if (index < tokens.length - 1) {
+          const nextToken = tokens[index + 1];
+          if (nextToken.type === 'identifier' && !['AND', 'OR'].includes(nextToken.value.toUpperCase())) {
+            // We have a value followed immediately by an identifier that's not a logical operator
+            addError(nextToken, `Unexpected token '${nextToken.value}' after value. Did you forget a logical operator (AND/OR)?`);
+          }
+        }
       }
     });
 

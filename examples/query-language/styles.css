@@ -20,6 +20,19 @@
   outline: none;
 }
 
+.query-inputfield.error {
+  border-color: rgba(220, 53, 69, 0.6);
+}
+
+.query-inputfield.error:hover {
+  border-color: rgba(200, 35, 51, 0.6);
+}
+
+.query-inputfield.error.focused {
+  border-color: rgba(220, 53, 69, 0.6);
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.25), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 .query-inputfield .monaco-editor {
   height: 22px !important;
 }

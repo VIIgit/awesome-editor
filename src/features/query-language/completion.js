@@ -109,6 +109,11 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
       list: '5'
     };
     
+    // Handle undefined or null labels
+    if (!label) {
+      return `${order[type] || '9'}`;
+    }
+    
     // Special ordering for operators
     if (type === 'operator') {
       const operatorOrder = {
@@ -165,10 +170,12 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
       );
     } else if (field.type === 'string' && field.values) {
       suggestions.push(...field.values.map(v => ({
-        label: `"${v}"`,
+        label: v === 'NULL' ? 'NULL' : `"${v}"`,
         kind: monaco.languages.CompletionItemKind.Value,
-        insertText: `"${v}"`,
-        documentation: docMarkdown(`String value "${v}"`),
+        insertText: v === 'NULL' ? 'NULL' : `"${v}"`,
+        documentation: v === 'NULL' ? 
+          docMarkdown('Special keyword for null/undefined/empty values') :
+          docMarkdown(`String value "${v}"`),
         sortText: getSortText('value', v)
       })));
     } else if (field.type === 'string' && !field.values) {
@@ -377,30 +384,111 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
   const completionProvider = monaco.languages.registerCompletionItemProvider(languageId, {
     triggerCharacters,
     provideCompletionItems: (model, position) => {
-      // Get text up to cursor
+      // Get text up to cursor (don't trim to preserve space context)
       const text = model.getValueInRange({
         startLineNumber: 1,
         startColumn: 1,
         endLineNumber: position.lineNumber,
         endColumn: position.column
-      }).trim();
+      });
 
-      // Enhanced context extraction
-      const tokens = text.match(/([\w]+|\(|\)|\[|\]|"[^"]*"|\S)/g) || [];
+      // Check if cursor is after whitespace (indicates we completed a token)
+      const endsWithSpace = /\s$/.test(text);
+      
+      // Enhanced context extraction - use trimmed text for tokenization
+      const tokens = text.trim().match(/([\w]+|\(|\)|\[|\]|"[^"]*"|\S)/g) || [];
       const context = getExpressionContext(tokens, position);
       let suggestions = [];
 
-      // Context-aware suggestions
-      if (context.needsField || context.afterLogical || (tokens.length === 1 && /^[a-zA-Z]+$/.test(tokens[0]) && !fieldPattern.test(tokens[0]))) {
-        // Get the current word being typed
-        const currentWord = context.afterLogical ? '' : (tokens[tokens.length - 1] || '');
-        const prevToken = context.afterLogical ? tokens[tokens.length - 1] : (tokens[tokens.length - 2] || '');
+      // If we're after whitespace and have tokens, we might need to adjust context
+      if (endsWithSpace && tokens.length > 0) {
+        const lastToken = tokens[tokens.length - 1];
+        // If last token is a field name and we're after space, we need operators
+        if (fieldList.includes(lastToken)) {
+          context.needsOperator = true;
+          context.currentField = lastToken;
+          context.needsField = false;
+          context.afterLogical = false;
+        }
+      }
+
+      // Detect if we're in search mode or structured query mode
+      const hasOperators = tokens.some(token => 
+        ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR'].includes(token.toUpperCase())
+      );
+
+      // Count meaningful tokens (exclude empty strings)
+      const meaningfulTokens = tokens.filter(token => token.trim().length > 0);
+      const isFirstWord = meaningfulTokens.length <= 1 && !context.needsOperator;
+
+      // Get the current word being typed
+      const currentWord = context.afterLogical ? '' : (tokens[tokens.length - 1] || '');
+      const prevToken = context.afterLogical ? tokens[tokens.length - 1] : (tokens[tokens.length - 2] || '');
+
+      // Special handling for first word - show both structured and search suggestions
+      if (isFirstWord && !hasOperators && /^[a-zA-Z]+$/.test(currentWord)) {
+        // Show field name suggestions (for structured mode)
+        const matchingFields = fieldList.filter(f => 
+          f.toLowerCase().startsWith(currentWord.toLowerCase())
+        );
         
+        if (matchingFields.length > 0) {
+          suggestions.push(...matchingFields.map(f => ({
+            label: f,
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: `${f} = `,
+            documentation: docMarkdown(`Field: ${descriptions[f] || f}\n\nClick to start a structured query with this field.`),
+            detail: 'Field (start structured query)',
+            sortText: `0_field_${f}`, // Sort fields first
+            command: { id: 'editor.action.triggerSuggest' } // Auto-trigger next suggestions
+          })));
+        }
+
+        // Show search mode suggestion
+        if (currentWord.length >= 1) {
+          suggestions.push({
+            label: `"${currentWord}" (search all fields)`,
+            kind: monaco.languages.CompletionItemKind.Text,
+            insertText: currentWord,
+            documentation: docMarkdown(`Search for "${currentWord}" in any field\n\nType additional words to search for multiple terms.`),
+            detail: 'Text search mode',
+            sortText: `1_search_${currentWord}` // Sort after fields
+          });
+        }
+        
+        return { suggestions };
+      }
+
+      // Search mode suggestions (for subsequent words when no operators detected)
+      if (!hasOperators && meaningfulTokens.length > 1) {
+        // After first word in search mode, only suggest search continuation
+        if (/^[a-zA-Z0-9]*$/.test(currentWord)) {
+          suggestions.push({
+            label: `"${currentWord || 'term'}" (continue search)`,
+            kind: monaco.languages.CompletionItemKind.Text,
+            insertText: currentWord || '',
+            documentation: docMarkdown(`Add "${currentWord || 'term'}" as additional search term\n\nAll terms must be found in the record for it to match.`),
+            detail: 'Additional search term',
+            sortText: `0_search_continue`
+          });
+        }
+        
+        return { suggestions };
+      }
+
+      // Structured query mode (existing logic)
+      if (context.needsOperator && context.currentField) {
+        // After a field name, show operators
+        suggestions = getOperatorSuggestions(fieldNames[context.currentField], position, model);
+      } else if (context.needsValue && context.currentField && fieldNames[context.currentField]) {
+        // After an operator, show values
+        suggestions = getValueSuggestions(fieldNames[context.currentField]);
+      } else if (context.needsField || context.afterLogical || (tokens.length === 1 && /^[a-zA-Z]+$/.test(tokens[0]) && !fieldPattern.test(tokens[0]))) {        
         // Only show field suggestions if:
         // 1. We're at the start of a query, or
         // 2. After a logical operator (AND/OR), or
         // 3. We're typing something that isn't a complete field name yet
-        if (!prevToken || logicalPattern.test(prevToken) || !fieldPattern.test(currentWord)) {
+        if (!prevToken || logicalPattern.test(prevToken) || (currentWord && !fieldPattern.test(currentWord))) {
           // Filter field list by the current word if it's an alphabetical string
           const matchingFields = /^[a-zA-Z]+$/.test(currentWord) 
             ? fieldList.filter(f => f.toLowerCase().startsWith(currentWord.toLowerCase()))
@@ -417,10 +505,6 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
         } else {
           suggestions = [];
         }
-      } else if (context.needsOperator && context.currentField) {
-        suggestions = getOperatorSuggestions(fieldNames[context.currentField], position, model);
-      } else if (context.needsValue && context.currentField && fieldNames[context.currentField]) {
-        suggestions = getValueSuggestions(fieldNames[context.currentField]);
       } else if (context.inList && context.currentField) {
         // Handle IN list suggestions...
         const field = fieldNames[context.currentField];
@@ -439,10 +523,12 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
         if (field.type === 'string' && field.values) {
           const remainingValues = field.values.filter(v => !listValues.has(v));
           suggestions = remainingValues.map(v => ({
-            label: `"${v}"`,
+            label: v === 'NULL' ? 'NULL' : `"${v}"`,
             kind: monaco.languages.CompletionItemKind.Value,
-            insertText: `"${v}"`,
-            documentation: docMarkdown(`String value "${v}"`),
+            insertText: v === 'NULL' ? 'NULL' : `"${v}"`,
+            documentation: v === 'NULL' ? 
+              docMarkdown('Special keyword for null/undefined/empty values') :
+              docMarkdown(`String value "${v}"`),
             sortText: getSortText('value', v)
           }));
         } else if (field.type === 'string' && !field.values) {

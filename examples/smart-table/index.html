@@ -1,25 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Smart Table Example</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div class="container">
     <h1>Smart Table Example</h1>
     <p>Enter a query to filter the table below. Examples:</p>
     <div class="smart-table-toolbar">
-      <div id="editor-container" style="flex-grow: 1;"></div>
-      <select id="group-by">
-        <option value="">Group by...</option>
-      </select>
+      <button id="add-records-btn" class="add-records-btn">Add 5 example records</button>
+      <button id="add-single-record-btn" class="add-records-btn">Add 1 example record and select the record</button>
+
+
     </div>
-    <div id="error-message" class="error-message"></div>
-    <div class="smart-table-container">
-      <table id="data-table" class="smart-table"></table>
+    <div class="smart-table-wrapper">
+      <div class="smart-table-toolbar">
+        <div id="query-input-container"></div>
+        <select id="group-by">
+          <option value="">Group by...</option>
+        </select>
+      </div>
+      <div class="smart-table-header-container">
+        <table id="header-table" class="smart-table smart-table-header">
+          <!-- Header will be populated by JavaScript -->
+        </table>
+      </div>
+      <div class="smart-table-container">
+        <table id="data-table" class="smart-table smart-table-body">
+          <!-- Body will be populated by JavaScript -->
+        </table>
+      </div>
     </div>
   </div>
 </body>
+
 </html>

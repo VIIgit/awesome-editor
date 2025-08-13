@@ -20,6 +20,7 @@ export function setupTokenProvider(monaco, { fieldNames, languageId }) {
     ],
 
     keywords: ['AND', 'OR', 'IN'],
+    operators: ['=', '!=', '>=', '<=', '>', '<'],
     
     tokenizer: {
       root: [
@@ -27,6 +28,7 @@ export function setupTokenProvider(monaco, { fieldNames, languageId }) {
         [/\b(AND|OR)\b/, 'keyword'],
         [/\b(IN)\b/, { token: 'operator', next: '@inArray' }],
         [/\b(true|false)\b/, 'boolean'],
+        [/\b(NULL)\b/, 'keyword.null'],
         
         // Operators and delimiters
         [/(=|!=|>=|<=|>|<)/, 'operator'],
@@ -40,6 +42,9 @@ export function setupTokenProvider(monaco, { fieldNames, languageId }) {
         // Literals (after operators to avoid partial matches)
         [/"(?:[^"\\]|\\.)*"/, 'string'],
         [/-?\d+(?:\.\d+)?/, 'number'],
+        
+        // Free text/search terms (words that don't match above patterns)
+        [/[a-zA-Z0-9_]+/, 'string.search'],
         
         // Whitespace
         [/\s+/, 'white']
