@@ -9,12 +9,12 @@
  */
 
 (function(monaco) {
-            if (typeof monaco === 'undefined') {
-              console.error('Monaco Editor must be loaded before the json-schema-validation feature');
-              return;
-            }
+              if (typeof monaco === 'undefined') {
+                console.error('Monaco Editor must be loaded before the json-schema-validation feature');
+                return;
+              }
 
-            class JsonPathParser {
+              class JsonPathParser {
   constructor(jsonStr) {
     this.jsonStr = jsonStr;
     this.i = 0;
@@ -303,9 +303,9 @@ function setupJsonValidation(editor, options) {
 
 
 
-            // Expose feature to global scope
-            window.awesomeEditor = window.awesomeEditor || {};
-            window.awesomeEditor['json-schema-validation'] = {
-              setupJsonValidation, setupHoverProvider
-            };
-          })(window.monaco);
+              // Expose feature to global scope
+              window.awesomeEditor = window.awesomeEditor || {};
+              window.awesomeEditor['json-schema-validation'] = {
+                setupJsonValidation, setupHoverProvider
+              };
+            })(window.monaco);

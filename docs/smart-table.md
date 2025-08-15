@@ -2,6 +2,8 @@
 
 The Smart Table feature enhances HTML tables with powerful query filtering capabilities using Monaco Editor integration. It allows users to filter table data using a simple yet powerful query language.
 
+**Note**: The vanilla smart-table.js distribution now includes all query-language features built-in, so you only need to include one script file.
+
 ![Smart Table Screenshot](./smart-table.png)
 
 ## Installation
@@ -74,11 +76,14 @@ import { setupSmartTable } from '@awesome-editor/smart-table';
     </div>
     
     <script src="https://unpkg.com/monaco-editor@latest/min/vs/loader.js"></script>
-    <script src="../dist/vanilla/smart-table.js"></script>
     <script>
         require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@latest/min/vs' }});
+    </script>
+    <script src="../dist/vanilla/smart-table.js"></script>
+    <script>
+        // The smart-table.js script automatically handles Monaco loading
+        // We need to wait for Monaco to be ready before using the functions
         require(['vs/editor/editor.main'], function() {
-            // Your data and table setup
             const data = [
                 { id: 1, name: 'John', age: 30, city: 'New York', active: true, status: 'active' },
                 { id: 2, name: 'Jane', age: 25, city: 'Los Angeles', active: false, status: 'inactive' },
@@ -103,7 +108,7 @@ import { setupSmartTable } from '@awesome-editor/smart-table';
                 { field: 'status', header: 'Status Text', groupable: true }
             ];
             
-            // Initialize smart table
+            // Now setupSmartTable is available globally
             const { filter, group } = setupSmartTable(monaco, {
                 table: document.getElementById('data-table'),
                 data,
@@ -280,13 +285,20 @@ For a simpler vanilla JavaScript setup, see `/examples/vanilla/index.html` which
 <div id="editor-container"></div>
 <table id="my-table"></table>
 
+<script src="https://unpkg.com/monaco-editor@latest/min/vs/loader.js"></script>
 <script>
-// After Monaco is loaded
-const { filter } = setupSmartTable(monaco, {
-    table: document.getElementById('my-table'),
-    data: yourData,
-    columns: yourColumns,
-    editorContainer: document.getElementById('editor-container')
-});
+    require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@latest/min/vs' }});
+</script>
+<script src="path/to/smart-table.js"></script>
+<script>
+    // Wait for Monaco to be ready before using the functions
+    require(['vs/editor/editor.main'], function() {
+        const { filter } = setupSmartTable(monaco, {
+            table: document.getElementById('my-table'),
+            data: yourData,
+            columns: yourColumns,
+            editorContainer: document.getElementById('editor-container')
+        });
+    });
 </script>
 ```

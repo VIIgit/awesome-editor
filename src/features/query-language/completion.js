@@ -338,6 +338,14 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
       afterLogical: false
     };
 
+    // Check for parentheses context - if we're right after an opening parenthesis
+    // or inside empty parentheses, we should expect a field name
+    if (lastToken === '(' || (lastToken === '' && prevToken === '(')) {
+      context.needsField = true;
+      context.afterLogical = false;
+      return context;
+    }
+
     // First check for logical operators as they reset the expression context
     if (!lastToken || logicalPattern.test(lastToken)) {
       context.needsField = true;
@@ -414,7 +422,7 @@ export function setupCompletionProvider(monaco, { fieldNames, languageId }) {
 
       // Detect if we're in search mode or structured query mode
       const hasOperators = tokens.some(token => 
-        ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR'].includes(token.toUpperCase())
+        ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR','(', ')'].includes(token)
       );
 
       // Count meaningful tokens (exclude empty strings)

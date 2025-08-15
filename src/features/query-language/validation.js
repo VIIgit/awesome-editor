@@ -476,7 +476,7 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
 
     // Detect if this is search mode or structured query mode
     const hasOperators = tokens.some(token => 
-      ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR'].includes(token.value.toUpperCase())
+      ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR', '(', ')'].includes(token.value)
     );
     
     // If no operators found, treat as search mode (no validation needed)

@@ -9,12 +9,12 @@
  */
 
 (function(monaco) {
-            if (typeof monaco === 'undefined') {
-              console.error('Monaco Editor must be loaded before the query-language feature');
-              return;
-            }
+              if (typeof monaco === 'undefined') {
+                console.error('Monaco Editor must be loaded before the query-language feature');
+                return;
+              }
 
-            /**
+              /**
  * Sets up basic language configuration for the query language
  * @param {object} monaco The Monaco editor instance
  */
@@ -53,7 +53,9 @@ function setupEditorTheme(monaco) {
       { token: 'boolean', foreground: '5f5757', fontStyle: 'bold' },
       { token: 'number', foreground: '5f5757', fontStyle: 'bold' },
       { token: 'string', foreground: '5f5757', fontStyle: 'bold' },
-      { token: 'keyword', foreground: '007acc', fontStyle: 'bold' }
+      { token: 'string.search', foreground: '5f5757', fontStyle: 'bold' },
+      { token: 'keyword', foreground: '007acc', fontStyle: 'bold' },
+      { token: 'keyword.null', foreground: '5f5757', fontStyle: 'bold' }
     ],
     colors: {
       'editor.foreground': '#5f5757',
@@ -84,6 +86,7 @@ function setupTokenProvider(monaco, { fieldNames, languageId }) {
     ],
 
     keywords: ['AND', 'OR', 'IN'],
+    operators: ['=', '!=', '>=', '<=', '>', '<'],
     
     tokenizer: {
       root: [
@@ -91,6 +94,7 @@ function setupTokenProvider(monaco, { fieldNames, languageId }) {
         [/\b(AND|OR)\b/, 'keyword'],
         [/\b(IN)\b/, { token: 'operator', next: '@inArray' }],
         [/\b(true|false)\b/, 'boolean'],
+        [/\b(NULL)\b/, 'keyword.null'],
         
         // Operators and delimiters
         [/(=|!=|>=|<=|>|<)/, 'operator'],
@@ -104,6 +108,9 @@ function setupTokenProvider(monaco, { fieldNames, languageId }) {
         // Literals (after operators to avoid partial matches)
         [/"(?:[^"\\]|\\.)*"/, 'string'],
         [/-?\d+(?:\.\d+)?/, 'number'],
+        
+        // Free text/search terms (words that don't match above patterns)
+        [/[a-zA-Z0-9_]+/, 'string.search'],
         
         // Whitespace
         [/\s+/, 'white']
@@ -212,7 +219,7 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
   const fieldPattern = new RegExp(`^(${Object.keys(fieldNames).join('|')})$`);
   const operPattern = /^(=|!=|>=|<=|>|<)$/i;
   const inPattern = /^IN$/; // Case-sensitive IN operator
-  const logicalPattern = /^(AND|OR)$/i;
+  const logicalPattern = /^(AND|OR)$/; // Case-sensitive logical operators
   const fieldList = Object.keys(fieldNames);
   
 
@@ -230,6 +237,11 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
       logical: '4',
       list: '5'
     };
+    
+    // Handle undefined or null labels
+    if (!label) {
+      return `${order[type] || '9'}`;
+    }
     
     // Special ordering for operators
     if (type === 'operator') {
@@ -287,10 +299,12 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
       );
     } else if (field.type === 'string' && field.values) {
       suggestions.push(...field.values.map(v => ({
-        label: `"${v}"`,
+        label: v === 'NULL' ? 'NULL' : `"${v}"`,
         kind: monaco.languages.CompletionItemKind.Value,
-        insertText: `"${v}"`,
-        documentation: docMarkdown(`String value "${v}"`),
+        insertText: v === 'NULL' ? 'NULL' : `"${v}"`,
+        documentation: v === 'NULL' ? 
+          docMarkdown('Special keyword for null/undefined/empty values') :
+          docMarkdown(`String value "${v}"`),
         sortText: getSortText('value', v)
       })));
     } else if (field.type === 'string' && !field.values) {
@@ -453,6 +467,14 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
       afterLogical: false
     };
 
+    // Check for parentheses context - if we're right after an opening parenthesis
+    // or inside empty parentheses, we should expect a field name
+    if (lastToken === '(' || (lastToken === '' && prevToken === '(')) {
+      context.needsField = true;
+      context.afterLogical = false;
+      return context;
+    }
+
     // First check for logical operators as they reset the expression context
     if (!lastToken || logicalPattern.test(lastToken)) {
       context.needsField = true;
@@ -499,30 +521,111 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
   const completionProvider = monaco.languages.registerCompletionItemProvider(languageId, {
     triggerCharacters,
     provideCompletionItems: (model, position) => {
-      // Get text up to cursor
+      // Get text up to cursor (don't trim to preserve space context)
       const text = model.getValueInRange({
         startLineNumber: 1,
         startColumn: 1,
         endLineNumber: position.lineNumber,
         endColumn: position.column
-      }).trim();
+      });
 
-      // Enhanced context extraction
-      const tokens = text.match(/([\w]+|\(|\)|\[|\]|"[^"]*"|\S)/g) || [];
+      // Check if cursor is after whitespace (indicates we completed a token)
+      const endsWithSpace = /\s$/.test(text);
+      
+      // Enhanced context extraction - use trimmed text for tokenization
+      const tokens = text.trim().match(/([\w]+|\(|\)|\[|\]|"[^"]*"|\S)/g) || [];
       const context = getExpressionContext(tokens, position);
       let suggestions = [];
 
-      // Context-aware suggestions
-      if (context.needsField || context.afterLogical || (tokens.length === 1 && /^[a-zA-Z]+$/.test(tokens[0]) && !fieldPattern.test(tokens[0]))) {
-        // Get the current word being typed
-        const currentWord = context.afterLogical ? '' : (tokens[tokens.length - 1] || '');
-        const prevToken = context.afterLogical ? tokens[tokens.length - 1] : (tokens[tokens.length - 2] || '');
+      // If we're after whitespace and have tokens, we might need to adjust context
+      if (endsWithSpace && tokens.length > 0) {
+        const lastToken = tokens[tokens.length - 1];
+        // If last token is a field name and we're after space, we need operators
+        if (fieldList.includes(lastToken)) {
+          context.needsOperator = true;
+          context.currentField = lastToken;
+          context.needsField = false;
+          context.afterLogical = false;
+        }
+      }
+
+      // Detect if we're in search mode or structured query mode
+      const hasOperators = tokens.some(token => 
+        ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR','(', ')'].includes(token)
+      );
+
+      // Count meaningful tokens (exclude empty strings)
+      const meaningfulTokens = tokens.filter(token => token.trim().length > 0);
+      const isFirstWord = meaningfulTokens.length <= 1 && !context.needsOperator;
+
+      // Get the current word being typed
+      const currentWord = context.afterLogical ? '' : (tokens[tokens.length - 1] || '');
+      const prevToken = context.afterLogical ? tokens[tokens.length - 1] : (tokens[tokens.length - 2] || '');
+
+      // Special handling for first word - show both structured and search suggestions
+      if (isFirstWord && !hasOperators && /^[a-zA-Z]+$/.test(currentWord)) {
+        // Show field name suggestions (for structured mode)
+        const matchingFields = fieldList.filter(f => 
+          f.toLowerCase().startsWith(currentWord.toLowerCase())
+        );
         
+        if (matchingFields.length > 0) {
+          suggestions.push(...matchingFields.map(f => ({
+            label: f,
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: `${f} = `,
+            documentation: docMarkdown(`Field: ${descriptions[f] || f}\n\nClick to start a structured query with this field.`),
+            detail: 'Field (start structured query)',
+            sortText: `0_field_${f}`, // Sort fields first
+            command: { id: 'editor.action.triggerSuggest' } // Auto-trigger next suggestions
+          })));
+        }
+
+        // Show search mode suggestion
+        if (currentWord.length >= 1) {
+          suggestions.push({
+            label: `"${currentWord}" (search all fields)`,
+            kind: monaco.languages.CompletionItemKind.Text,
+            insertText: currentWord,
+            documentation: docMarkdown(`Search for "${currentWord}" in any field\n\nType additional words to search for multiple terms.`),
+            detail: 'Text search mode',
+            sortText: `1_search_${currentWord}` // Sort after fields
+          });
+        }
+        
+        return { suggestions };
+      }
+
+      // Search mode suggestions (for subsequent words when no operators detected)
+      if (!hasOperators && meaningfulTokens.length > 1) {
+        // After first word in search mode, only suggest search continuation
+        if (/^[a-zA-Z0-9]*$/.test(currentWord)) {
+          suggestions.push({
+            label: `"${currentWord || 'term'}" (continue search)`,
+            kind: monaco.languages.CompletionItemKind.Text,
+            insertText: currentWord || '',
+            documentation: docMarkdown(`Add "${currentWord || 'term'}" as additional search term\n\nAll terms must be found in the record for it to match.`),
+            detail: 'Additional search term',
+            sortText: `0_search_continue`
+          });
+        }
+        
+        return { suggestions };
+      }
+
+      // Structured query mode (existing logic)
+      if (context.needsOperator && context.currentField) {
+        // After a field name, show operators
+        suggestions = getOperatorSuggestions(fieldNames[context.currentField], position, model);
+      } else if (context.needsValue && context.currentField && fieldNames[context.currentField]) {
+        // After an operator, show values
+        suggestions = getValueSuggestions(fieldNames[context.currentField]);
+      } else if (context.needsField || context.afterLogical || (tokens.length === 1 && /^[a-zA-Z]+$/.test(tokens[0]) && !fieldPattern.test(tokens[0]))) {        
         // Only show field suggestions if:
         // 1. We're at the start of a query, or
         // 2. After a logical operator (AND/OR), or
         // 3. We're typing something that isn't a complete field name yet
-        if (!prevToken || logicalPattern.test(prevToken) || !fieldPattern.test(currentWord)) {
+        if (!prevToken || logicalPattern.test(prevToken) || (currentWord && !fieldPattern.test(currentWord))) {
           // Filter field list by the current word if it's an alphabetical string
           const matchingFields = /^[a-zA-Z]+$/.test(currentWord) 
             ? fieldList.filter(f => f.toLowerCase().startsWith(currentWord.toLowerCase()))
@@ -539,10 +642,6 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
         } else {
           suggestions = [];
         }
-      } else if (context.needsOperator && context.currentField) {
-        suggestions = getOperatorSuggestions(fieldNames[context.currentField], position, model);
-      } else if (context.needsValue && context.currentField && fieldNames[context.currentField]) {
-        suggestions = getValueSuggestions(fieldNames[context.currentField]);
       } else if (context.inList && context.currentField) {
         // Handle IN list suggestions...
         const field = fieldNames[context.currentField];
@@ -561,10 +660,12 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
         if (field.type === 'string' && field.values) {
           const remainingValues = field.values.filter(v => !listValues.has(v));
           suggestions = remainingValues.map(v => ({
-            label: `"${v}"`,
+            label: v === 'NULL' ? 'NULL' : `"${v}"`,
             kind: monaco.languages.CompletionItemKind.Value,
-            insertText: `"${v}"`,
-            documentation: docMarkdown(`String value "${v}"`),
+            insertText: v === 'NULL' ? 'NULL' : `"${v}"`,
+            documentation: v === 'NULL' ? 
+              docMarkdown('Special keyword for null/undefined/empty values') :
+              docMarkdown(`String value "${v}"`),
             sortText: getSortText('value', v)
           }));
         } else if (field.type === 'string' && !field.values) {
@@ -677,27 +778,123 @@ function setupValidation(monaco, { fieldNames, languageId }) {
     }
 
     const tokens = [];
-    // Enhanced regex - put longer patterns first and use word boundaries for keywords
-    const re = /([()\[\]]|!=|>=|<=|=|>|<|\bIN\b|\bAND\b|\bOR\b|,|"(?:[^"\\]|\\.)*(?:"|$)|[-]?\d*\.?\d+|\btrue\b|\bfalse\b|\w+)/gi;
-    let match;
+    let position = 0;
     
-    while ((match = re.exec(str)) !== null) {
-      const value = match[0].trim();
-      if (!value) continue; // Skip empty matches
-
-      // Determine token type
-      let type = getTokenType(value);
-      // Special handling for unclosed strings
-      if (type === 'string' && !value.endsWith('"')) {
-        type = 'unclosed-string';
+    while (position < str.length) {
+      // Skip whitespace
+      if (/\s/.test(str[position])) {
+        position++;
+        continue;
       }
-
-      tokens.push({
-        value,
-        type,
-        start: match.index,
-        end: match.index + match[0].length
-      });
+      
+      let match = null;
+      let value = '';
+      let type = '';
+      let tokenStart = position;
+      
+      // Check for specific patterns in order of priority
+      
+      // 1. Operators (multi-character first)
+      if (str.substring(position).match(/^(!=|>=|<=)/)) {
+        const op = str.substring(position).match(/^(!=|>=|<=)/)[0];
+        value = op;
+        type = 'operator';
+        position += op.length;
+      }
+      // 2. Single character operators
+      else if (/[=<>]/.test(str[position])) {
+        value = str[position];
+        type = 'operator';
+        position++;
+      }
+      // 3. Punctuation
+      else if (/[(),\[\]]/.test(str[position])) {
+        value = str[position];
+        type = 'punctuation';
+        position++;
+      }
+      // 4. Comma
+      else if (str[position] === ',') {
+        value = ',';
+        type = 'punctuation';
+        position++;
+      }
+      // 5. Quoted strings (including unclosed ones)
+      else if (str[position] === '"') {
+        let endQuoteFound = false;
+        let stringEnd = position + 1;
+        
+        // Look for closing quote, handling escaped quotes
+        while (stringEnd < str.length) {
+          if (str[stringEnd] === '"' && str[stringEnd - 1] !== '\\') {
+            endQuoteFound = true;
+            stringEnd++;
+            break;
+          }
+          stringEnd++;
+        }
+        
+        value = str.substring(position, stringEnd);
+        type = endQuoteFound ? 'string' : 'unclosed-string';
+        position = stringEnd;
+      }
+      // 6. Numbers
+      else if (/\d/.test(str[position]) || (str[position] === '-' && /\d/.test(str[position + 1]))) {
+        const numberMatch = str.substring(position).match(/^-?\d*\.?\d+/);
+        if (numberMatch) {
+          value = numberMatch[0];
+          type = 'number';
+          position += value.length;
+        } else {
+          // Fallback - treat as identifier
+          const identifierMatch = str.substring(position).match(/^\w+/);
+          value = identifierMatch ? identifierMatch[0] : str[position];
+          type = 'identifier';
+          position += value.length;
+        }
+      }
+      // 7. Keywords and identifiers
+      else if (/[a-zA-Z_]/.test(str[position])) {
+        const wordMatch = str.substring(position).match(/^[a-zA-Z_]\w*/);
+        if (wordMatch) {
+          value = wordMatch[0];
+          
+          // Check for keywords (case-sensitive for logical operators)
+          if (['AND', 'OR'].includes(value)) { // Case-sensitive check
+            type = 'keyword';
+          } else if (value === 'IN') { // Case-sensitive
+            type = 'keyword';
+          } else if (['true', 'false'].includes(value.toLowerCase())) {
+            type = 'boolean';
+          } else if (value.toLowerCase() === 'null') {
+            type = 'null';
+          } else {
+            type = 'identifier';
+          }
+          
+          position += value.length;
+        } else {
+          // Single character fallback
+          value = str[position];
+          type = 'identifier';
+          position++;
+        }
+      }
+      // 8. Fallback for any other character
+      else {
+        value = str[position];
+        type = 'identifier';
+        position++;
+      }
+      
+      if (value) {
+        tokens.push({
+          value,
+          type,
+          start: tokenStart,
+          end: position
+        });
+      }
     }
 
     // Cache the result if it's not too large (prevent memory issues)
@@ -712,9 +909,10 @@ function setupValidation(monaco, { fieldNames, languageId }) {
   function getTokenType(value) {
     if (/^-?\d*\.?\d+$/.test(value)) return 'number';
     if (/^".*"$/.test(value)) return 'string';
-    if (/^"/.test(value)) return 'unclosed-string';
+    if (/^"/.test(value) && !value.endsWith('"')) return 'unclosed-string';
     if (/^(true|false)$/i.test(value)) return 'boolean';
-    if (/^(AND|OR)$/i.test(value)) return 'keyword';
+    if (/^(null)$/i.test(value)) return 'null';
+    if (/^(AND|OR)$/.test(value)) return 'keyword'; // Case-sensitive check for logical operators
     if (value === 'IN') return 'keyword'; // Case-sensitive check for IN operator
     if (/^[=!<>]=?$/.test(value)) return 'operator';
     if (/^[\[\](),]$/.test(value)) return 'punctuation';
@@ -1027,6 +1225,32 @@ function setupValidation(monaco, { fieldNames, languageId }) {
     const markers = [];
     const tokens = tokenize(value);
 
+    // Detect if this is search mode or structured query mode
+    const hasOperators = tokens.some(token => 
+      ['=', '!=', '>', '<', '>=', '<=', 'IN', 'AND', 'OR', '(', ')'].includes(token.value)
+    );
+    
+    // If no operators found, treat as search mode (no validation needed)
+    if (!hasOperators && tokens.length > 0) {
+      // Search mode - just check for unclosed strings
+      tokens.forEach(token => {
+        if (token.type === 'unclosed-string') {
+          addError(token, 'Unclosed string literal');
+        }
+      });
+      
+      // Cache and store validation result
+      validationCache.set(validationHash, markers);
+      lastValidationState = {
+        content: value,
+        tokens,
+        markers,
+        hasErrors: markers.length > 0
+      };
+      monaco.editor.setModelMarkers(model, languageId, markers);
+      return;
+    }
+
     // Helper to add error marker
     function addError(token, message) {
       markers.push({
@@ -1075,7 +1299,8 @@ function setupValidation(monaco, { fieldNames, languageId }) {
       if (fieldCache.has(token)) {
         return fieldCache.get(token);
       }
-      const isValid = fieldNames[token] || /^[A-Z_][A-Z0-9_]*$/i.test(token);
+      // Only allow defined field names - remove the fallback regex
+      const isValid = fieldNames[token] !== undefined;
       fieldCache.set(token, isValid);
       return isValid;
     }
@@ -1104,8 +1329,8 @@ function setupValidation(monaco, { fieldNames, languageId }) {
         expressionState.inParentheses = expressionState.parenthesesBalance > 0;
       }
 
-      // Reset expression state after logical operators
-      if (['AND', 'OR'].includes(current)) {
+      // Reset expression state after logical operators (only uppercase ones are valid)
+      if (['AND', 'OR'].includes(token.value)) {
         // Check if we have a complete expression before the logical operator
         const hasCompleteExpression = expressionState.hasValue || 
                                     (prev === ']' && tokens.slice(0, index).some(t => t.value.toUpperCase() === 'IN'));
@@ -1116,13 +1341,62 @@ function setupValidation(monaco, { fieldNames, languageId }) {
         return;
       }
 
-      // Enhanced field name validation
-      if (isValidField(token.value) && !['AND', 'OR', 'IN', 'TRUE', 'FALSE'].includes(current)) {
-        if (expressionState.hasField && !expressionState.hasValue && !['AND', 'OR'].includes(prev)) {
-          addError(token, 'Unexpected field name. Did you forget an operator or AND/OR?');
+      // Check if we're expecting a logical operator after a complete expression
+      if (token.type === 'identifier' && expressionState.hasValue) {
+        // We just completed an expression (field = value), so we expect a logical operator
+        if (['and', 'or'].includes(token.value.toLowerCase())) {
+          // This is a logical operator but in wrong case
+          addError(token, `Logical operator must be uppercase. Use '${token.value.toUpperCase()}' instead of '${token.value}'.`);
+          return;
+        } else if (!['AND', 'OR'].includes(token.value.toUpperCase())) {
+          // This is not a logical operator at all, but we expected one
+          addError(token, `Expected logical operator (AND/OR) after complete expression, but found '${token.value}'.`);
+          return;
         }
-        expressionState.hasField = true;
-        expressionState.currentField = token.value;
+      }
+
+      // Enhanced field name validation      
+      if (token.type === 'identifier' && !['AND', 'OR', 'IN', 'TRUE', 'FALSE', 'NULL'].includes(token.value)) {
+        // Check for lowercase logical operators first
+        if (['and', 'or'].includes(token.value.toLowerCase()) && token.value !== token.value.toUpperCase()) {
+          addError(token, `Logical operator must be uppercase. Use '${token.value.toUpperCase()}' instead of '${token.value}'.`);
+          return;
+        }
+        
+        // Check if this is a valid field name
+        if (!isValidField(token.value)) {
+          // Check if we're in a position where a field name is expected
+          const expectingField = !expressionState.hasField || 
+                               (index > 0 && ['AND', 'OR'].includes(tokens[index - 1].value.toUpperCase()));
+          
+          if (expectingField) {
+            const availableFields = Object.keys(fieldNames);
+            let suggestion = '';
+            if (availableFields.length > 0) {
+              // Find the closest matching field name
+              const closest = availableFields.find(f => 
+                f.toLowerCase().includes(token.value.toLowerCase()) ||
+                token.value.toLowerCase().includes(f.toLowerCase())
+              );
+              if (closest) {
+                suggestion = ` Did you mean '${closest}'?`;
+              } else {
+                const fieldList = availableFields.length <= 5 
+                  ? availableFields.join(', ')
+                  : availableFields.slice(0, 5).join(', ') + '...';
+                suggestion = ` Available fields: ${fieldList}`;
+              }
+            }
+            addError(token, `Unknown field name '${token.value}'.${suggestion}`);
+          }
+        } else {
+          // Valid field name
+          if (expressionState.hasField && !expressionState.hasValue && !['AND', 'OR'].includes(prev)) {
+            addError(token, 'Unexpected field name. Did you forget an operator or AND/OR?');
+          }
+          expressionState.hasField = true;
+          expressionState.currentField = token.value;
+        }
       }
 
       // Enhanced operator validation
@@ -1142,6 +1416,11 @@ function setupValidation(monaco, { fieldNames, languageId }) {
         }
       }
 
+      // Check for unclosed strings immediately (regardless of expression state)
+      if (token.type === 'unclosed-string') {
+        addError(token, 'Unclosed string literal. Did you forget a closing quote?');
+      }
+
       // Special handling for IN operator (case-sensitive, uppercase only)
       if (token.value === 'IN') {
         if (!expressionState.hasField) {
@@ -1154,11 +1433,14 @@ function setupValidation(monaco, { fieldNames, languageId }) {
 
       // Value validation with type checking
       if ((token.type === 'string' || token.type === 'number' || token.type === 'boolean' || 
-           token.type === 'unclosed-string') && expressionState.hasOperator) {
+           token.type === 'null' || token.type === 'unclosed-string') && expressionState.hasOperator) {
         if (expressionState.currentField) {
           const field = fieldNames[expressionState.currentField];
           if (field) {
-            if (field.type === 'string' && token.type !== 'string' && token.type !== 'unclosed-string') {
+            // NULL is allowed for any field type (represents absence of value)
+            if (token.type === 'null') {
+              // NULL is valid for any field, skip type validation
+            } else if (field.type === 'string' && token.type !== 'string' && token.type !== 'unclosed-string') {
               addError(token, `Value must be a string for field '${expressionState.currentField}'`);
             } else if (field.type === 'number' && token.type !== 'number') {
               addError(token, `Value must be a number for field '${expressionState.currentField}'`);
@@ -1187,6 +1469,15 @@ function setupValidation(monaco, { fieldNames, languageId }) {
         }
         expressionState.hasValue = true;
         expressionState.lastValueToken = token;
+        
+        // Check for consecutive tokens without proper logical operators
+        if (index < tokens.length - 1) {
+          const nextToken = tokens[index + 1];
+          if (nextToken.type === 'identifier' && !['AND', 'OR'].includes(nextToken.value.toUpperCase())) {
+            // We have a value followed immediately by an identifier that's not a logical operator
+            addError(nextToken, `Unexpected token '${nextToken.value}' after value. Did you forget a logical operator (AND/OR)?`);
+          }
+        }
       }
     });
 
@@ -1356,22 +1647,106 @@ function setupQueryLanguage(monaco, { fieldNames = {} } = {}) {
  * @param {object} options.fieldNames Field definitions for this editor instance
  * @param {string} [options.initialValue=''] Initial editor content
  * @param {string} [options.placeholder=''] Placeholder text when editor is empty
+ * @param {boolean} [options.showClearButton=true] Whether to show the clear button
  * @returns {object} The created editor instance and its model
  */
-function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = '', placeholder = '' } = {}) {
+function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = '', placeholder = '', showClearButton = true } = {}) {
   // Set up language features for this editor instance
   const { languageId, setupAutoInsertBrackets } = setupQueryLanguage(monaco, { fieldNames });
 
   // Create editor model with initial value
   const model = monaco.editor.createModel(initialValue, languageId);
 
-  // Create wrapper div for proper sizing
+  // Create wrapper div for proper sizing with clear button container
   const wrapper = document.createElement('div');
-  wrapper.className = 'monaco-editor-container';
+  wrapper.className = 'monaco-editor-wrapper';
+  wrapper.style.cssText = `
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+  `;
   container.appendChild(wrapper);
 
+  // Create editor container
+  const editorContainer = document.createElement('div');
+  editorContainer.style.cssText = `
+    flex: 1;
+    height: 100%;
+    padding-right: ${showClearButton ? '30px' : '0px'};
+  `;
+  wrapper.appendChild(editorContainer);
+
+  let clearButton = null;
+  let updateClearButtonVisibility = null;
+
+  // Create clear button if enabled
+  if (showClearButton) {
+    clearButton = document.createElement('button');
+    clearButton.className = 'query-clear-button';
+    clearButton.innerHTML = '✕';
+    clearButton.title = 'Clear query';
+    clearButton.style.cssText = `
+      position: absolute;
+      right: 5px;
+      top: 40%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #6b7280;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      line-height: 1;
+      display: none;
+      z-index: 1000;
+      transition: all 0.15s ease;
+      outline: none;
+      padding: 0;
+      font-family: monospace;
+    `;
+
+    // Add hover and focus effects
+    clearButton.addEventListener('mouseenter', () => {
+      clearButton.style.background = '#fef2f2';
+      clearButton.style.color = '#dc2626';
+      clearButton.style.borderColor = '#fca5a5';
+      clearButton.style.transform = 'translateY(-50%) scale(1.05)';
+    });
+
+    clearButton.addEventListener('mouseleave', () => {
+      clearButton.style.background = '#f9fafb';
+      clearButton.style.color = '#6b7280';
+      clearButton.style.borderColor = '#d1d5db';
+      clearButton.style.transform = 'translateY(-50%) scale(1)';
+    });
+
+    // Add clear functionality
+    clearButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      model.setValue('');
+      editor.focus();
+      if (updateClearButtonVisibility) {
+        updateClearButtonVisibility();
+      }
+    });
+
+    wrapper.appendChild(clearButton);
+
+    // Function to toggle clear button visibility based on content
+    updateClearButtonVisibility = function() {
+      const hasContent = model.getValue().trim().length > 0;
+      clearButton.style.display = hasContent ? 'block' : 'none';
+    };
+  }
+
   // Create editor with standard configuration
-  const editor = monaco.editor.create(wrapper, {
+  const editor = monaco.editor.create(editorContainer, {
     model,
     theme: 'queryTheme',
     lineNumbers: 'off',
@@ -1394,32 +1769,121 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
     renderValidationDecorations: 'editable',
     automaticLayout: true,
     placeholder,
-    smoothScrolling: true
+    smoothScrolling: true,
+    // Enhanced suggestion settings for auto-triggering
+    suggestOnTriggerCharacters: true,
+    quickSuggestions: {
+      other: true,
+      comments: false,
+      strings: false
+    },
+    quickSuggestionsDelay: 100, // Faster suggestions
+    suggestFontSize: 13,
+    suggestLineHeight: 20,
+    suggest: {
+      insertMode: 'insert',
+      showStatusBar: false
+    }
   });
 
   // Set up auto-insert brackets functionality
   const autoInsertDisposable = setupAutoInsertBrackets(editor);
 
-  // Prevent Enter key from adding newlines
+  let contentChangeDisposable = null;
+
+  // Listen for content changes to show/hide clear button
+  if (showClearButton && updateClearButtonVisibility) {
+    contentChangeDisposable = model.onDidChangeContent(() => {
+      updateClearButtonVisibility();
+    });
+
+    // Initial visibility check
+    updateClearButtonVisibility();
+  }
+
+  // Prevent Enter key from adding newlines, but allow it for accepting suggestions
   editor.onKeyDown((e) => {
-    if (e.code === 'Enter') e.preventDefault();
+    if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+      // Check if the suggestion widget is visible using the correct Monaco API
+      const suggestController = editor.getContribution('editor.contrib.suggestController');
+      const isSuggestWidgetVisible = suggestController && suggestController.model && suggestController.model.state !== 0;
+      
+      // If suggestions are visible, allow Enter to accept them
+      if (isSuggestWidgetVisible) {
+        return; // Let Monaco handle the suggestion acceptance
+      }
+      
+      // Otherwise, prevent Enter from adding newlines
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  // Also prevent paste operations that contain newlines
+  editor.onDidPaste((e) => {
+    const currentValue = model.getValue();
+    // Remove any carriage return or line feed characters
+    const cleanValue = currentValue.replace(/[\r\n]/g, ' ');
+    if (cleanValue !== currentValue) {
+      model.setValue(cleanValue);
+    }
+  });
+
+  // Prevent newlines from any other source (like programmatic insertion)
+  model.onDidChangeContent((e) => {
+    const currentValue = model.getValue();
+    if (/[\r\n]/.test(currentValue)) {
+      const cleanValue = currentValue.replace(/[\r\n]/g, ' ');
+      // Use pushEditOperations to maintain undo history
+      model.pushEditOperations([], [{
+        range: model.getFullModelRange(),
+        text: cleanValue
+      }], () => null);
+    }
   });
 
   // Add cleanup method to the editor
   const originalDispose = editor.dispose.bind(editor);
   editor.dispose = () => {
     autoInsertDisposable.dispose();
+    if (contentChangeDisposable) {
+      contentChangeDisposable.dispose();
+    }
     originalDispose();
   };
+
+  // Add method to toggle clear button visibility programmatically
+  if (showClearButton) {
+    editor.setClearButtonMode = function(mode) {
+      if (!clearButton) return;
+      
+      if (mode === 'always') {
+        clearButton.style.display = 'block';
+      } else if (mode === 'never') {
+        clearButton.style.display = 'none';
+      } else if (mode === 'auto' && updateClearButtonVisibility) {
+        updateClearButtonVisibility();
+      }
+    };
+  }
+
+  // Add modern input field focus/blur behavior
+  editor.onDidFocusEditorWidget(() => {
+    container.classList.add('focused');
+  });
+  
+  editor.onDidBlurEditorWidget(() => {
+    container.classList.remove('focused');
+  });
 
   return { editor, model };
 }
 
 
 
-            // Expose feature to global scope
-            window.awesomeEditor = window.awesomeEditor || {};
-            window.awesomeEditor['query-language'] = {
-              setupQueryLanguage, createQueryEditor
-            };
-          })(window.monaco);
+              // Expose feature to global scope
+              window.awesomeEditor = window.awesomeEditor || {};
+              window.awesomeEditor['query-language'] = {
+                setupQueryLanguage, createQueryEditor
+              };
+            })(window.monaco);

@@ -96,6 +96,9 @@ export function setupSmartTable(monaco, {
     placeholder: 'Search or filter results... (e.g., age > 25 AND city = "New York")'
   });
 
+  // Add the query-inputfield class for consistent styling
+  editorContainer.classList.add('query-inputfield');
+
   // Manually trigger initial validation for the created model
   // This ensures validation is set up for our existing model
   setTimeout(() => {
@@ -1069,7 +1072,7 @@ function filterObjects(objects, query) {
   if (!query.trim()) return objects.map(obj => obj.id);
 
   // Detect if this is search mode or structured query mode
-  const hasOperators = /[=!<>]|(\bAND\b|\bOR\b|\bIN\b)/i.test(query);
+  const hasOperators = /[=!<>()]|(\bAND\b|\bOR\b|\bIN\b)/i.test(query);
   
   if (!hasOperators) {
     // Search mode: look for terms in any field values

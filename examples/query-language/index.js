@@ -34,15 +34,6 @@ function initializeEditors() {
       fieldNames: userFields,
       placeholder: 'Enter user query (e.g., id > 5 AND active = true)'
     });
-    
-    // Add modern input field focus/blur behavior
-    editor.onDidFocusEditorWidget(() => {
-      userQueryField.classList.add('focused');
-    });
-    
-    editor.onDidBlurEditorWidget(() => {
-      userQueryField.classList.remove('focused');
-    });
 
     // Add error handling for validation markers
     function updateErrorState() {
@@ -79,15 +70,6 @@ function initializeEditors() {
     const { editor, model } = createQueryEditor(monaco, productQueryField, {
       fieldNames: productFields,
       placeholder: 'Enter product query (e.g., price < 100 AND inStock = true)'
-    });
-    
-    // Add modern input field focus/blur behavior
-    editor.onDidFocusEditorWidget(() => {
-      productQueryField.classList.add('focused');
-    });
-    
-    editor.onDidBlurEditorWidget(() => {
-      productQueryField.classList.remove('focused');
     });
 
     // Add error handling for validation markers

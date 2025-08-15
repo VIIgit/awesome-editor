@@ -89,17 +89,6 @@ function initializeSmartTable() {
         }
       }
     });
-    // Add the query-inputfield class for consistent styling
-    editorContainer.classList.add('query-inputfield');
-
-    // Add focus management for styling
-    editor.onDidFocusEditorWidget(() => {
-      editorContainer.classList.add('focused');
-    });
-
-    editor.onDidBlurEditorWidget(() => {
-      editorContainer.classList.remove('focused');
-    });
 
     // Group-by dropdown is automatically populated by the smart table
 

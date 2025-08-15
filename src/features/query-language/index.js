@@ -287,5 +287,14 @@ export function createQueryEditor(monaco, container, { fieldNames = {}, initialV
     };
   }
 
+  // Add modern input field focus/blur behavior
+  editor.onDidFocusEditorWidget(() => {
+    container.classList.add('focused');
+  });
+  
+  editor.onDidBlurEditorWidget(() => {
+    container.classList.remove('focused');
+  });
+
   return { editor, model };
 }
