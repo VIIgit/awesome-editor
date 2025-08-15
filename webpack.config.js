@@ -63,34 +63,90 @@ function createVanillaFiles() {
             files.forEach(file => {
               content += processFile(path.join(baseDir, file)) + '\n\n';
             });
+          } else if (feature === 'smart-table') {
+            // For smart-table, include query-language dependencies first, then smart-table
+            const queryLangDir = path.resolve(__dirname, 'src/features/query-language');
+            const queryLangFiles = [
+              'language-config.js',
+              'theme.js',
+              'tokens.js',
+              'completion.js',
+              'validation.js',
+              'index.js'
+            ];
+            queryLangFiles.forEach(file => {
+              content += processFile(path.join(queryLangDir, file)) + '\n\n';
+            });
+            
+            // Then add smart-table functionality
+            content += processFile(srcPath) + '\n\n';
           } else {
             // For other features, just process the main file
             content = processFile(srcPath);
           }
           
-          // Wrap in IIFE
-          content = `(function(monaco) {
-            if (typeof monaco === 'undefined') {
-              console.error('Monaco Editor must be loaded before the ${feature} feature');
-              return;
-            }
+          // Wrap in IIFE with Monaco loading check
+          if (feature === 'smart-table') {
+            content = `(function() {
+              // Ensure Monaco Editor is loaded before initializing
+              if (typeof require !== 'undefined' && typeof require.config === 'function') {
+                require(['vs/editor/editor.main'], function() {
+                  initializeSmartTable();
+                });
+              } else if (typeof monaco !== 'undefined') {
+                // Monaco is already loaded
+                initializeSmartTable();
+              } else {
+                console.error('Monaco Editor must be loaded before the smart-table feature');
+                return;
+              }
 
-            ${content}
+              function initializeSmartTable() {
+                if (typeof monaco === 'undefined') {
+                  console.error('Monaco Editor is not available');
+                  return;
+                }
 
-            // Expose feature to global scope
-            window.awesomeEditor = window.awesomeEditor || {};
-            window.awesomeEditor['${feature}'] = {
-              ${feature === 'json-schema-validation' ? 'setupJsonValidation, setupHoverProvider' :
-                feature === 'query-language' ? 'setupQueryLanguage, createQueryEditor' :
-                feature === 'smart-table' ? 'setupSmartTable' : ''}
-            };
-          })(window.monaco);\n`;
+                ${content}
+
+                // Expose feature to global scope when available
+                if (typeof window !== 'undefined') {
+                  window.awesomeEditor = window.awesomeEditor || {};
+                  window.awesomeEditor['smart-table'] = {
+                    setupSmartTable, setupQueryLanguage, createQueryEditor
+                  };
+                  
+                  // Also expose functions directly on window for immediate access
+                  window.setupSmartTable = setupSmartTable;
+                  window.setupQueryLanguage = setupQueryLanguage;
+                  window.createQueryEditor = createQueryEditor;
+                }
+              }
+            })();\n`;
+          } else {
+            // Wrap other features in IIFE
+            content = `(function(monaco) {
+              if (typeof monaco === 'undefined') {
+                console.error('Monaco Editor must be loaded before the ${feature} feature');
+                return;
+              }
+
+              ${content}
+
+              // Expose feature to global scope
+              window.awesomeEditor = window.awesomeEditor || {};
+              window.awesomeEditor['${feature}'] = {
+                ${feature === 'json-schema-validation' ? 'setupJsonValidation, setupHoverProvider' :
+                  feature === 'query-language' ? 'setupQueryLanguage, createQueryEditor' : ''}
+              };
+            })(window.monaco);\n`;
+          }
 
           // Add a banner comment with feature description
           const descriptions = {
             'json-schema-validation': 'Adds JSON Schema validation, completion, and hover features to Monaco Editor',
             'query-language': 'Adds custom query language support with syntax highlighting and completion',
-            'smart-table': 'Adds table filtering capabilities using a query language'
+            'smart-table': 'Adds table filtering capabilities using a query language (includes query-language features)'
           };
 
           const banner = `/**
