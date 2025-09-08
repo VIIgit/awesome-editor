@@ -742,8 +742,21 @@ export function setupValidation(monaco, { fieldNames, languageId }) {
       });
     }
 
+    // Accept valid expressions ending with string/number/boolean/null
+    const lastToken = tokens[tokens.length - 1];
+    const validEndTypes = ['string', 'number', 'boolean', 'null'];
+    if (
+      tokens.length > 0 &&
+      !expressionState.hasValue &&
+      !expressionState.inParentheses &&
+      validEndTypes.includes(lastToken.type) &&
+      expressionState.hasField &&
+      expressionState.hasOperator
+    ) {
+      expressionState.hasValue = true;
+    }
+
     if (tokens.length > 0 && !expressionState.hasValue && !expressionState.inParentheses) {
-      const lastToken = tokens[tokens.length - 1];
       // Only mark as incomplete if we're at the actual end of content
       // or if the last token is an operator/identifier and there's nothing valid after it
       if (lastToken.type === 'identifier' || lastToken.type === 'operator') {

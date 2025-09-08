@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>SmartTable Demo</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+</head>
+
+<body>
+
+  <div id="table1" class="smart-table-widget">
+    <div class="smart-table-toolbar">
+      <div class="query-input-container" tabindex="0"></div>
+      <select class="group-by" tabindex="0">
+        <option value="">Group by...</option>
+        <!-- More options will be populated by JavaScript -->
+
+      </select>
+
+      <div class="info-section"></div>
+    </div>
+
+
+  </div>
+
+
+
+  <script src="./query.js"></script>
+  <script src="./smart-table.js"></script>
+  <script type="module">
+
+    const data = [
+      { id: 1, name: 'John Doe', age: 30, city: 'New York', active: true },
+      { id: 2, name: 'Jane Smith', age: 25, city: 'Los Angeles', active: false },
+      { id: 3, name: 'Bob Johnson', age: 35, city: 'Chicago', active: true },
+      { id: 4, name: 'Alice Brown', age: 28, city: 'New York', active: false },
+      { id: 5, name: 'Charlie Wilson', age: 32, city: 'Los Angeles', active: true },
+      { id: 6, name: 'Eva Martinez', age: 27, city: 'Chicago', active: true },
+      { id: 7, name: 'David Lee', age: 40, city: 'New York', active: false },
+      { id: 8, name: 'Grace Taylor', age: 22, city: 'Los Angeles', active: true },
+      { id: 9, name: 'Grace Taylor9', age: 2, city: 'Los Angeles', active: true },
+      { id: 10, name: 'Grace Taylor10', city: 'Los Angeles', active: true },
+      { id: 11, name: 'Grace11 Taylor', age: 22, city: 'Los Angeles', active: true },
+      { id: 12, name: 'no age, city, active' },
+      { id: 13, name: 'Grace Taylor13', age: 22, city: 'Los Angeles', active: true }
+    ];
+
+    // Column definitions with responsive metadata
+    const columns = [
+      {
+        field: 'id',
+        label: 'ID',
+        responsive: { priority: 'low', size: 'fixed-narrow', hideMobile: true },
+        groupable: false,
+        primaryKey: true
+      },
+      {
+        field: 'name',
+        label: 'Name',
+        responsive: { priority: 'high', size: 'flexible-medium', allowWrap: true },
+        groupable: false
+      },
+      {
+        field: 'age',
+        label: 'Age',
+        render: (value) => value ? `${value} years` : '',
+        responsive: { priority: 'medium', size: 'fixed-medium', hideSmall: true },
+        groupable: true
+      },
+      {
+        field: 'city',
+        label: 'City',
+        render: (value) => value ? `<a href="https://www.example.com?city=${encodeURIComponent(value)}" target="_blank" rel="noopener noreferrer">${value}</a>` : '',
+        responsive: { priority: 'medium', size: 'flexible-medium', allowWrap: true },
+        groupable: true
+      },
+      {
+        field: 'active',
+        label: 'Status',
+        render: (value) => {
+          if (value === true) return '✅ Active';
+          if (value === false) return '❌ Inactive';
+          return '';
+        },
+        responsive: { priority: 'high', size: 'flexible-small' },
+        groupable: true
+      }
+    ];
+
+    // Monaco Editor laden und dann SmartTable starten
+    require.config({
+      paths: {
+        vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs"
+      }
+    });
+
+    require(["vs/editor/editor.main"], function (monaco) {
+      const table1 = document.getElementById('table1');
+
+      // SmartTable instanzieren
+      const smartTable = new SmartTable(monaco, {
+        tableWidgetElement: table1,
+        data,
+        columns,
+        showCheckboxes: true,
+        multiSelect: true,
+        onSelectionChange: (rows) => {
+          console.log("📋 Selected rows:", rows.map(r => r?.name || 'No name').filter(Boolean));
+        },
+        onRowFocus: (row) => {
+          if (row) {
+            console.log("🎯 Focused row:", row.name || 'No name');
+          } else {
+            console.log("🎯 Focused on group header");
+          }
+        }
+      });
+
+      // API Beispiele:
+      // 1. Filter anwenden
+      smartTable.applyQuery('city = "Chicago" AND age > 26');
+
+      // 2. Sortieren
+      smartTable.sort('age', 'desc');
+
+      // 3. Gruppieren
+      smartTable.group('city');
+
+      // 4. Neue Zeile hinzufügen
+      smartTable.addRecord({ id: 5, name: 'Eva', age: 22, city: 'Hamburg', active: false });
+
+    });
+  </script>
+</body>
+
+</html>

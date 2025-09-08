@@ -25,7 +25,7 @@ import { setupSmartTable } from '@awesome-editor/smart-table';
     <title>Smart Table Example</title>
     <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://unpkg.com/monaco-editor@latest/min/vs/editor/editor.main.css">
     <style>
-        .smart-table-wrapper {
+        .smart-table-widget {
             border: 1px solid #dee2e6;
             border-radius: 4px;
             overflow: hidden;
@@ -56,7 +56,7 @@ import { setupSmartTable } from '@awesome-editor/smart-table';
     </style>
 </head>
 <body>
-    <div class="smart-table-wrapper">
+    <div class="smart-table-widget">
         <div class="smart-table-filter-toolbar">
             <div id="query-container" class="query-inputfield"></div>
             <select id="group-by">
@@ -64,12 +64,12 @@ import { setupSmartTable } from '@awesome-editor/smart-table';
             </select>
         </div>
         <div class="smart-table-header-container">
-            <table id="header-table" class="smart-table smart-table-header">
+            <table class="smart-table smart-table-header">
                 <!-- Header will be populated by JavaScript -->
             </table>
         </div>
         <div class="smart-table-container">
-            <table id="data-table" class="smart-table smart-table-body">
+            <table class="smart-table smart-table-body">
                 <!-- Body will be populated by JavaScript -->
             </table>
         </div>
@@ -110,7 +110,7 @@ import { setupSmartTable } from '@awesome-editor/smart-table';
             
             // Now setupSmartTable is available globally
             const { filter, group } = setupSmartTable(monaco, {
-                table: document.getElementById('data-table'),
+                smartTableWidget: document.querySelector('.smart-table-widget'),
                 data,
                 columns,
                 editorContainer: document.getElementById('query-container'),

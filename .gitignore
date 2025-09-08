@@ -1,4 +1,7 @@
 node_modules/
 dist/*.js
+dist/es6/
+dist/min/
+dist/features/
 .DS_Store
 *.log

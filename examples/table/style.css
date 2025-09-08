@@ -1,0 +1,729 @@
+/* Fully collapse thead in body table for alignment, but keep column widths */
+/* --- Compact SmartTable Styles --- */
+
+/* Body and HTML constraints */
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  margin: 0;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Table widget container - prevent overflow */
+.smart-table-widget {
+  width: 100%;
+  max-width: calc(100vw - 40px); /* Account for body padding */
+  overflow-x: auto;
+  overflow-y: visible;
+  box-sizing: border-box;
+  /* Allow horizontal scrolling if needed, but prevent vertical overflow */
+}
+
+.smart-table-header-container {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.95);
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.smart-table-header-container.drop-shadow {
+  box-shadow: 0px 5px 5px -5px rgba(0, 0, 0, 0.40);
+}
+
+.smart-table-header {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: transparent;
+}
+
+.smart-table-header th {
+  position: sticky;
+  top: 0;
+  background: transparent;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: none;
+  padding: 16px 12px;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+  z-index: 22;
+}
+
+.container {
+  max-width: 100vw; /* Use viewport width instead of fixed 1200px */
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  /* Prevent horizontal overflow */
+}
+
+.example-buttons {
+  margin: 1rem 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.example-buttons button {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+
+.example-buttons button:hover {
+  background: #e9ecef;
+  border-color: #ced4da;
+}
+
+h1 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+/* Query editor styles - matching query-language example */
+.smart-table-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+/* Modern text input styling for query input fields */
+.query-inputfield {
+  padding: 10px 5px 4px 10px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+  width: 300px;
+}
+
+.query-inputfield:hover {
+  border-color: #b0b8c1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.query-inputfield.focused {
+  border-color: #123a67;
+  box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1);
+  outline: none;
+}
+
+.query-inputfield.error {
+  border-color: rgba(220, 53, 69, 0.6);
+}
+
+.query-inputfield.error:hover {
+  border-color: rgba(200, 35, 51, 0.6);
+}
+
+.query-inputfield.error.focused {
+  border-color: rgba(220, 53, 69, 0.6);
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.25), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.query-inputfield .monaco-editor {
+  height: 22px !important;
+}
+
+/* Table styles - responsive with spacing for shadows */
+.smart-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 400px; /* Minimum table width */
+  border-collapse: separate; /* Change to separate to allow row spacing */
+  border-spacing: 0 2px; /* Add vertical spacing between rows for shadows */
+  margin-top: 1rem;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  table-layout: fixed;
+  /* Enable responsive column distribution */
+}
+
+.smart-table th,
+.smart-table td {
+  padding: 8px 12px;
+  /* Reduced padding for better fit */
+  text-align: left;
+  border-bottom: 1px solid #dee2e6;
+  word-wrap: break-word;
+  /* Allow text wrapping */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Show ellipsis for overflow text */
+  white-space: nowrap;
+  /* Prevent text wrapping initially */
+  max-width: 0;
+  /* Allow flexible column sizing */
+}
+
+.smart-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.smart-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Toolbar styles */
+.smart-table-toolbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 8px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.smart-table-toolbar select {
+  padding: 4px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background: white;
+  min-width: 150px;
+}
+
+.smart-table-toolbar .add-records-btn {
+  padding: 4px 12px;
+  border: 1px solid #007acc;
+  border-radius: 4px;
+  background: #007acc;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+
+.smart-table-toolbar .add-records-btn:hover {
+  background: #005a9e;
+  border-color: #005a9e;
+}
+
+/* Table wrapper for split header/body approach */
+.smart-table-wrapper {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  overflow: hidden;
+  background: white;
+  /* Solid background for blur backdrop */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Filter toolbar inside the table wrapper */
+.smart-table-filter-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  background: rgba(248, 249, 250, 0.95);
+  border-bottom: 1px solid rgba(222, 226, 230, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.smart-table-filter-toolbar .query-input-container {
+  flex: 1;
+  min-width: 200px;
+}
+
+.smart-table-filter-toolbar .group-by {
+  min-width: 140px;
+}
+
+.smart-table-header-container {
+  background: rgba(255, 255, 255, 0.9);
+  /* Glass-like white background */
+  border-bottom: 1px solid rgba(222, 226, 230, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  /* Enhanced blur with saturation */
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* Safari support */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Smooth easing */
+  position: relative;
+  z-index: 10;
+}
+
+.smart-table-header-container.scrolled {
+  background: rgba(255, 255, 255, 0.95);
+  /* More opaque when scrolled */
+  backdrop-filter: blur(25px) saturate(180%);
+  /* Stronger blur when scrolled */
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+
+}
+
+.smart-table-header-container thead {
+  position: static;
+  /* Remove sticky since header is separate */
+  background: transparent;
+  /* Let the container background show through */
+}
+
+.smart-table-header-container th {
+  position: static;
+  /* Remove sticky since header is separate */
+  background: transparent;
+  /* Let the container background show through */
+  font-weight: 600;
+  color: #374151;
+  /* Darker text for better contrast */
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: none;
+  padding: 16px 12px;
+  /* More padding for modern look */
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+  /* Subtle text shadow */
+}
+
+/* Table container styles - responsive design */
+.smart-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  /* Prevent horizontal overflow */
+}
+
+/* Info section styles */
+.smart-table-info {
+  padding: 8px 12px;
+  border: 1px solid #dee2e6;
+  color: rgb(34, 33, 33);
+  border-bottom: none;
+  font-size: 14px;
+  border-radius: 4px 4px 0 0;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  text-align: right;
+}
+
+.smart-table-wrapper .smart-table-info:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.smart-table-body-container {
+  position: relative;
+  max-height: 400px;
+  overflow-x: auto;
+  /* Allow horizontal scroll only when absolutely needed */
+  overflow-y: auto;
+  border: none;
+  border-radius: 0;
+  background: white;
+  /* Ensure solid background for blur visibility */
+  width: 100%;
+}
+
+.smart-table-header-container {
+  width: 100%;
+  overflow: hidden;
+  /* Prevent header overflow */
+}
+
+/* Enable sticky header within the container */
+.smart-table-body-container.scrolled .smart-table thead {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Collapse thead in body table to minimal height for alignment */
+.smart-table-body thead,
+.smart-table-body thead tr,
+.smart-table-body thead th {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  line-height: 0 !important;
+  font-size: 0 !important;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.smart-table-header-container {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  table-layout: fixed;
+  /* Fix table layout for consistent column widths */
+  width: 100%;
+  /* Ensure full width */
+  max-width: 100%;
+  /* Prevent overflow */
+  border-collapse: separate;
+  /* Better for glass effect */
+  border-spacing: 0;
+}
+
+.smart-table-body {
+  margin: 0;
+  border: none;
+  table-layout: fixed;
+  /* Fix table layout for consistent column widths */
+  background: white;
+  /* Solid background for blur effect visibility */
+  width: 100%;
+  /* Ensure full width */
+  max-width: 100%;
+  /* Prevent overflow */
+  border-collapse: separate;
+  /* Better for precise column alignment */
+  border-spacing: 0;
+}
+
+/* Enhanced styling for split table body */
+.smart-table-body tbody tr {
+  background: white;
+  transition: background-color 0.2s ease;
+}
+
+.smart-table-body tbody tr:hover {
+  background: rgba(0, 123, 255, 0.1) !important;
+  /* Blue hover effect */
+}
+
+.smart-table thead,
+.smart-table.sticky-header thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f8f9fa;
+  transition: box-shadow 0.2s ease;
+}
+
+.smart-table th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  z-index: 10;
+}
+
+.smart-table th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  z-index: 10;
+  font-weight: 600;
+  color: #495057;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.smart-table th.sorted:after {
+  content: '↓';
+  margin-left: 4px;
+}
+
+.smart-table th.sorted.desc:after {
+  content: '↑';
+}
+
+.smart-table tr.group-header {
+  position: sticky;
+  top: 0;
+  /* Stick to top of scrollable container */
+  z-index: 5;
+  /* Below header container but above regular rows */
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.smart-table tr.group-header td {
+  padding: 12px;
+  color: #374151;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+.smart-table tr.group-header .group-toggle {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  margin-right: 8px;
+  border: 1px solid rgba(206, 212, 218, 0.8);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  transition: all 0.2s ease;
+}
+
+.smart-table tr.group-header.collapsed .group-toggle:after {
+  content: '+';
+}
+
+.smart-table tr.group-header:not(.collapsed) .group-toggle:after {
+  content: '-';
+}
+
+.smart-table tr.group-collapsed {
+  display: none;
+}
+
+/* Selection column - always fixed and small */
+.smart-table td.select-cell,
+.smart-table th.select-cell,
+.smart-table .checkbox-column {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  text-align: center;
+  padding: 4px;
+}
+
+.smart-table .row-checkbox {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Example section styles */
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+li {
+  margin-bottom: 0.5rem;
+}
+
+code {
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: Monaco, "Courier New", monospace;
+  font-size: 0.9em;
+  color: #e83e8c;
+}
+
+/* Make the table responsive */
+@media (max-width: 768px) {
+  .smart-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+.smart-table thead {
+  background: #f8f9fa;
+}
+
+/* Dynamic column styling - applied by JavaScript based on column metadata
+ * Usage: Add these classes to columns in your column definitions:
+ * 
+ * Sizes:
+ * - col-fixed-narrow: 50-80px (e.g., ID columns)
+ * - col-fixed-medium: 80-120px (e.g., numeric columns)
+ * - col-flexible-small: min 100px, flex 1 (e.g., status)
+ * - col-flexible-medium: min 120px, flex 2 (e.g., categories)
+ * - col-flexible-large: min 150px, flex 3 (e.g., names, descriptions)
+ * 
+ * Priorities (for responsive hiding):
+ * - col-priority-low: Hidden first on mobile
+ * - col-priority-medium: Hidden second on mobile  
+ * - col-priority-high: Always visible
+ * 
+ * Responsive behavior:
+ * - hidden-mobile: Hidden on screens < 768px
+ * - hidden-small: Hidden on screens < 480px
+ */
+.smart-table .col-fixed-narrow {
+  min-width: 50px;
+  max-width: 80px;
+}
+
+.smart-table .col-fixed-medium {
+  min-width: 80px;
+  max-width: 120px;
+}
+
+.smart-table .col-flexible-small {
+  min-width: 100px;
+  flex: 1;
+}
+
+.smart-table .col-flexible-medium {
+  min-width: 120px;
+  flex: 2;
+}
+
+.smart-table .col-flexible-large {
+  min-width: 150px;
+  flex: 3;
+}
+
+/* Priority classes for responsive behavior */
+.smart-table .col-priority-low {
+  /* Will be hidden first on mobile - applied by JavaScript */
+  order: 10;
+}
+
+.smart-table .col-priority-medium {
+  /* Will be hidden second on mobile - applied by JavaScript */
+  order: 5;
+}
+
+.smart-table .col-priority-high {
+  /* Will be kept visible on mobile - applied by JavaScript */
+  order: 1;
+}
+
+/* Responsive design for smaller screens - dynamic approach */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .smart-table-toolbar {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .query-inputfield {
+    width: 100%;
+  }
+
+  .smart-table th,
+  .smart-table td {
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  /* Dynamic responsive behavior will be handled by JavaScript */
+  .smart-table th.hidden-mobile,
+  .smart-table td.hidden-mobile {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+
+  /* Dynamic responsive behavior will be handled by JavaScript */
+  .smart-table th.hidden-small,
+  .smart-table td.hidden-small {
+    display: none;
+  }
+}
+
+/* Allow text wrapping for flexible columns */
+.smart-table .flexible-text {
+  white-space: normal;
+  line-height: 1.3;
+  word-wrap: break-word;
+}
+
+/* Conditional checkbox styles */
+.smart-table.no-checkboxes .select-cell {
+  display: none;
+}
+
+/* Selection background - keep visual feedback */
+.smart-table tbody tr.selected td,
+.smart-table-body tbody tr.selected td {
+  background-color: rgba(0, 123, 255, 0.1) !important;
+}
+
+/* Focused row styling - use box-shadow instead of outline to avoid height changes */
+.smart-table tbody tr.focused,
+.smart-table-body tbody tr.focused {
+  outline: 2px solid red;
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* Multi-selection enhancements */
+.smart-table tbody tr {
+  cursor: pointer;
+  user-select: none;
+  /* Prevent text selection during multi-select */
+}
+
+.smart-table tbody tr:hover {
+  background-color: rgba(0, 123, 255, 0.05) !important;
+}
+
+/* Hide selection hint when no multi-select */
+.smart-table.no-multiselect .smart-table-info::after {
+  display: none;
+}
+
+/* Indeterminate checkbox styling */
+.smart-table input[type="checkbox"]:indeterminate {
+  background: #007bff;
+  border-color: #007bff;
+}
+
+.smart-table input[type="checkbox"]:indeterminate::after {
+  content: "—";
+  color: white;
+  font-weight: bold;
+  position: absolute;
+  top: -2px;
+  left: 2px;
+}
+
+/* Info section right alignment */
+.info-section {
+  text-align: right;
+  font-size: 0.9em;
+  color: #666;
+  padding: 8px 0;
+}
+
+/* Table container should use full width for flexible columns */
+.smart-table-container,
+.smart-table-header-container,
+.smart-table-body-container {
+  width: 100%;
+}
+
+/* Flexible column behavior - handle text overflow */
+.smart-table th[data-size="flexible-large"],
+.smart-table td[data-size="flexible-large"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smart-table th[data-size="flexible-medium"],
+.smart-table td[data-size="flexible-medium"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smart-table th[data-size="flexible-small"],
+.smart-table td[data-size="flexible-small"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

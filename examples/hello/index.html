@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hello Feature Example</title>
+  <link rel="stylesheet" href="/features/hello/styles.css">
+  <!-- Monaco Editor loader (for future Monaco integration) -->
+  <script src="https://unpkg.com/monaco-editor@0.52.2/min/vs/loader.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Hello Feature</h1>
+  <button id="hello-btn">Say Hello</button>
+  <div id="monaco-container" style="height:200px;border:1px solid #ccc;margin-top:20px;"></div>
+  </div>
+  <script type="module" src="/features/hello/index.js"></script>
+  <script type="module" src="/hello/index.js"></script>
+</body>
+</html>

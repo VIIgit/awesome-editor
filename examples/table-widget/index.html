@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>DivTable Widget Demo</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <h1>DivTable Widget Demo</h1>
+    <p>A modern table widget built with CSS Grid and Flexbox - no HTML tables!</p>
+
+    <h2>Table with Checkboxes</h2>
+    <div class="table-layout">
+      <div class="table-section">
+        <div id="divtable1" class="div-table-widget">
+        </div>
+      </div>
+      <div class="details-section">
+        <div id="details1" class="details-panel">
+          <h3>Row Details</h3>
+          <div class="details-content empty">
+            Click on a row to see details here
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Table without Checkboxes</h2>
+    <div class="table-layout">
+      <div class="table-section">
+        <div id="divtable2" class="div-table-widget">
+        </div>
+      </div>
+      <div class="details-section">
+        <div id="details2" class="details-panel">
+          <h3>Row Details</h3>
+          <div class="details-content empty">
+            Click on a row to see details here
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./query.js"></script>
+  <script src="./div-table.js"></script>
+  <script type="module">
+
+    // Function to update details panel
+    function updateDetailsPanel(detailsId, row, group) {
+      const detailsContent = document.querySelector(`#${detailsId} .details-content`);
+      
+      if (group) {
+        detailsContent.className = 'details-content';
+        detailsContent.innerHTML = `
+          <div class="detail-item">
+            <span class="detail-label">Group Type:</span>
+            <span class="detail-value">${group.label}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Group Value:</span>
+            <span class="detail-value">${group.value || 'undefined'}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Items in Group:</span>
+            <span class="detail-value">${group.itemCount}</span>
+          </div>
+        `;
+      } else if (row) {
+        detailsContent.className = 'details-content';
+        const items = Object.entries(row)
+          .filter(([key, value]) => value !== undefined && value !== null && value !== '')
+          .map(([key, value]) => `
+            <div class="detail-item">
+              <span class="detail-label">${key.charAt(0).toUpperCase() + key.slice(1)}:</span>
+              <span class="detail-value">${value}</span>
+            </div>
+          `).join('');
+        
+        detailsContent.innerHTML = items || '<div class="detail-item">No data available</div>';
+      } else {
+        detailsContent.className = 'details-content empty';
+        detailsContent.innerHTML = 'Click on a row to see details here';
+      }
+    }
+
+    const data = [
+      { id: 1, name: 'John Doe', age: 30, city: 'New York', active: true },
+      { id: 2, name: 'Jane Smith', age: 25, city: 'Los Angeles', active: false },
+      { id: 3, name: 'Bob Johnson', age: 35, city: 'Chicago', active: true },
+      { id: 4, name: 'Alice Brown', age: 28, city: 'New York', active: false },
+      { id: 5, name: 'Charlie Wilson', age: 32, city: 'Los Angeles', active: true },
+      { id: 6, name: 'Eva Martinez', age: 27, city: 'Chicago', active: true },
+      { id: 7, name: 'David Lee', age: 40, city: 'New York', active: false },
+      { id: 8, name: 'Grace Taylor', age: 22, city: 'Los Angeles', active: true },
+      { id: 9, name: 'Grace Taylor9', age: 2, city: 'Los Angeles', active: true },
+      { id: 10, name: 'Grace Taylor10', city: 'Los Angeles', active: true },
+      { id: 11, name: 'Grace11 Taylor', age: 22, city: 'Los Angeles', active: true },
+      { id: 12, name: 'no age, city, active' },
+      { id: 13, name: 'Grace Taylor13', age: 22, city: 'Los Angeles', active: true }
+    ];
+
+    // Column definitions with responsive metadata
+    const columns = [
+      {
+        field: 'id',
+        label: 'ID',
+        responsive: { priority: 'low', size: 'fixed-narrow', hideMobile: true },
+        groupable: false,
+        primaryKey: true
+      },
+      {
+        field: 'name',
+        label: 'Name',
+        responsive: { priority: 'high', size: 'flexible-medium', allowWrap: true },
+        groupable: false
+      },
+      {
+        field: 'age',
+        label: 'Age',
+        render: (value) => value ? `${value} years` : '',
+        responsive: { priority: 'medium', size: 'fixed-medium', hideSmall: true },
+        groupable: true
+      },
+      {
+        field: 'city',
+        label: 'City',
+        render: (value) => value ? `<a href="https://www.example.com?city=${encodeURIComponent(value)}" target="_blank" rel="noopener noreferrer">${value}</a>` : '',
+        responsive: { priority: 'medium', size: 'flexible-medium', allowWrap: true },
+        groupable: true
+      },
+      {
+        field: 'active',
+        label: 'Status',
+        render: (value) => {
+          if (value === true) return '✅ Active';
+          if (value === false) return '❌ Inactive';
+          return '';
+        },
+        responsive: { priority: 'high', size: 'flexible-small' },
+        groupable: true
+      }
+    ];
+
+    // Monaco Editor laden und dann DivTable starten
+    require.config({
+      paths: {
+        vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs"
+      }
+    });
+
+    require(["vs/editor/editor.main"], function (monaco) {
+      const divTable1 = document.getElementById('divtable1');
+      const divTable2 = document.getElementById('divtable2');
+
+      // First DivTable instance with checkboxes
+      const divTableWithCheckboxes = new DivTable(monaco, {
+        tableWidgetElement: divTable1,
+        data: [...data], // Clone data to avoid interference
+        columns,
+        showCheckboxes: true,
+        multiSelect: true,
+        onSelectionChange: (rows) => {
+          console.log("📋 Table 1 (with checkboxes) - Selected rows:", rows.map(r => r?.name || 'No name').filter(Boolean));
+        },
+        onRowFocus: (row, group) => {
+          if (group) {
+            updateDetailsPanel('details1', null, group);
+          } else if (row) {
+            updateDetailsPanel('details1', row, null);
+          } else {
+            updateDetailsPanel('details1', null, null);
+          }
+        }
+      });
+
+      // Second DivTable instance without checkboxes
+      const divTableWithoutCheckboxes = new DivTable(monaco, {
+        tableWidgetElement: divTable2,
+        data: [...data], // Clone data to avoid interference
+        columns,
+        showCheckboxes: false,
+        multiSelect: true,
+        onSelectionChange: (rows) => {
+          console.log("📋 Table 2 (without checkboxes) - Selected rows:", rows.map(r => r?.name || 'No name').filter(Boolean));
+        },
+        onRowFocus: (row, group) => {
+          if (group) {
+            updateDetailsPanel('details2', null, group);
+          } else if (row) {
+            updateDetailsPanel('details2', row, null);
+          } else {
+            updateDetailsPanel('details2', null, null);
+          }
+        }
+      });
+
+      divTableWithoutCheckboxes.group('city');
+
+      // API Examples - Initialize query feature like in smart-table:
+      // 1. Apply filter - Enable query functionality
+      divTableWithCheckboxes.applyQuery('city = "Chicago" AND age > 26');
+
+      // 2. Sort
+      //divTableWithCheckboxes.sort('age', 'desc');
+
+      // 3. Group (already applied above)
+      //divTableWithCheckboxes.group('city');
+
+      // 4. Add new row
+      //divTableWithCheckboxes.addRecord({ id: 14, name: 'Eva', age: 22, city: 'Hamburg', active: false });
+
+    });
+  </script>
+</body>
+
+</html>

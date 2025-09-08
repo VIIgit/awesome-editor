@@ -1,0 +1,378 @@
+/**
+ * @license
+ * smart-table feature styles for Awesome Editor
+ * Adds table filtering capabilities using a query language (includes query-language features)
+ * 
+ * @version 0.1.1
+ * @copyright (c) 2025 Awesome Editor Contributors
+ * @license MIT License
+ */
+
+/**
+ * Smart Table Default Styles
+ * 
+ * These styles provide a clean, modern appearance for the smart table feature.
+ * You can customize these styles or override them with your own CSS.
+ */
+
+/* Main wrapper container */
+.smart-table-wrapper {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    margin: 16px 0;
+}
+
+/* Filter toolbar */
+.smart-table-filter-toolbar,
+.smart-table-toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 16px;
+    background: rgba(248, 249, 250, 0.95);
+    border-bottom: 1px solid rgba(222, 226, 230, 0.8);
+    flex-wrap: wrap;
+}
+
+.smart-table-filter-toolbar .query-input-container {
+    flex: 1;
+    min-width: 300px;
+    position: relative;
+}
+
+.smart-table-filter-toolbar .group-by {
+    min-width: 160px;
+    padding: 8px 12px;
+    border: 1px solid #e1e5e9;
+    border-radius: 6px;
+    background: white;
+    font-size: 14px;
+    color: #495057;
+}
+
+.smart-table-filter-toolbar .group-by:focus {
+    outline: none;
+    border-color: #0078d4;
+    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.25);
+}
+
+/* Query input field styling */
+.query-inputfield {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 16px;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 14px;
+    line-height: 1.4;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.query-inputfield:hover {
+    border-color: #c7ced4;
+}
+
+.query-inputfield.focused {
+    border-color: #0078d4;
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.25);
+}
+
+.query-inputfield.error {
+    border-color: #d13438;
+    box-shadow: 0 0 0 3px rgba(209, 52, 56, 0.25);
+}
+
+/* Info section */
+.smart-table-info {
+    padding: 8px 16px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 13px;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* Table containers */
+.smart-table-header-container {
+    overflow-x: auto;
+    border-bottom: 2px solid #e9ecef;
+    background: #ffffff;
+}
+
+.smart-table-container {
+    overflow-x: auto;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Table styling */
+.smart-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    table-layout: fixed;
+}
+
+.smart-table th,
+.smart-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: middle;
+    word-wrap: break-word;
+}
+
+/* Header styling */
+.smart-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 2px solid #dee2e6;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.smart-table th:hover {
+    background: #e9ecef;
+}
+
+.smart-table th.sorted {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.smart-table th.sorted.asc::after {
+    content: ' ▲';
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+.smart-table th.sorted.desc::after {
+    content: ' ▼';
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+/* Row styling */
+.smart-table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.smart-table tbody tr:hover {
+    background: rgba(0, 120, 212, 0.04);
+}
+
+.smart-table tbody tr.selected {
+    background: rgba(0, 120, 212, 0.08);
+    border-left: 3px solid #0078d4;
+}
+
+.smart-table tbody tr.selected.last-selected {
+    background: rgba(0, 120, 212, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(0, 120, 212, 0.3);
+}
+
+.smart-table tbody tr.group-header {
+    background: #f1f3f4;
+    font-weight: 600;
+    cursor: pointer;
+    border-left: 4px solid #0078d4;
+}
+
+.smart-table tbody tr.group-header:hover {
+    background: #e8eaed;
+}
+
+.smart-table tbody tr.group-header td {
+    padding: 16px;
+    border-bottom: 1px solid #dadce0;
+}
+
+.smart-table tbody tr.group-header .group-toggle {
+    margin-right: 8px;
+    font-weight: normal;
+    color: #5f6368;
+    transition: transform 0.2s ease;
+}
+
+.smart-table tbody tr.group-header.collapsed .group-toggle {
+    transform: rotate(-90deg);
+}
+
+/* Checkbox styling */
+.row-checkbox {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #0078d4;
+}
+
+.smart-table.no-checkboxes .row-checkbox {
+    display: none;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .smart-table-filter-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    .smart-table-filter-toolbar .query-input-container {
+        min-width: auto;
+    }
+    
+    .smart-table-filter-toolbar .group-by {
+        min-width: auto;
+    }
+    
+    .smart-table th,
+    .smart-table td {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    
+    .smart-table th.hidden-mobile,
+    .smart-table td.hidden-mobile {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .smart-table-wrapper {
+        margin: 8px 0;
+        border-radius: 4px;
+    }
+    
+    .smart-table-filter-toolbar {
+        padding: 12px;
+    }
+    
+    .smart-table th,
+    .smart-table td {
+        padding: 6px 8px;
+        font-size: 12px;
+    }
+    
+    .smart-table th.hidden-small,
+    .smart-table td.hidden-small {
+        display: none;
+    }
+}
+
+/* Loading and empty states */
+.smart-table-loading {
+    text-align: center;
+    padding: 48px 24px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.smart-table-empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: #6c757d;
+}
+
+.smart-table-empty::before {
+    content: '📝';
+    display: block;
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+/* Utilities */
+.smart-table .text-center {
+    text-align: center;
+}
+
+.smart-table .text-right {
+    text-align: right;
+}
+
+.smart-table .text-nowrap {
+    white-space: nowrap;
+}
+
+.smart-table .font-weight-bold {
+    font-weight: 600;
+}
+
+.smart-table .text-muted {
+    color: #6c757d;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .smart-table-wrapper {
+        background: #1e1e1e;
+        border-color: #404040;
+        color: #e0e0e0;
+    }
+    
+    .smart-table-filter-toolbar {
+        background: rgba(40, 40, 40, 0.95);
+        border-bottom-color: rgba(64, 64, 64, 0.8);
+    }
+    
+    .query-inputfield {
+        background: #2d2d2d;
+        border-color: #404040;
+        color: #e0e0e0;
+    }
+    
+    .query-inputfield:hover {
+        border-color: #606060;
+    }
+    
+    .smart-table {
+        background: #1e1e1e;
+    }
+    
+    .smart-table th {
+        background: #2d2d2d;
+        color: #e0e0e0;
+        border-bottom-color: #404040;
+    }
+    
+    .smart-table th:hover {
+        background: #404040;
+    }
+    
+    .smart-table td {
+        border-bottom-color: #404040;
+    }
+    
+    .smart-table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+    
+    .smart-table tbody tr.selected {
+        background: rgba(0, 120, 212, 0.15);
+    }
+    
+    .smart-table tbody tr.group-header {
+        background: #2d2d2d;
+        border-left-color: #0078d4;
+    }
+    
+    .smart-table-info {
+        background: #2d2d2d;
+        border-bottom-color: #404040;
+        color: #a0a0a0;
+    }
+}
