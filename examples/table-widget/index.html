@@ -44,6 +44,22 @@
         </div>
       </div>
     </div>
+
+    <h2>Virtual Scrolling Table (1000+ Records)</h2>
+    <div class="table-layout">
+      <div class="table-section">
+        <div id="divtable3" class="div-table-widget">
+        </div>
+      </div>
+      <div class="details-section">
+        <div id="details3" class="details-panel">
+          <h3>Row Details</h3>
+          <div class="details-content empty">
+            Click on a row to see details here
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="./query.js"></script>
@@ -200,6 +216,141 @@
       });
 
       divTableWithoutCheckboxes.group('city');
+
+      // Virtual Scrolling Demo - Third DivTable instance with virtual scrolling
+      const divTable3 = document.getElementById('divtable3');
+      
+      // Function to simulate loading data from server
+      function simulateDataFetch(page, pageSize) {
+        return new Promise((resolve) => {
+          // Simulate network delay
+          setTimeout(() => {
+            const startId = page * pageSize + 1;
+            const newData = [];
+            
+            // Generate realistic data for demonstration
+            const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose'];
+            const departments = ['Engineering', 'Marketing', 'Sales', 'Support', 'Finance', 'HR', 'Operations'];
+            const firstNames = ['John', 'Jane', 'Bob', 'Alice', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry'];
+            const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+            
+            for (let i = 0; i < pageSize; i++) {
+              const id = startId + i;
+              const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+              const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+              const city = cities[Math.floor(Math.random() * cities.length)];
+              const department = departments[Math.floor(Math.random() * departments.length)];
+              const age = Math.floor(Math.random() * 40) + 22; // Age between 22-62
+              const active = Math.random() > 0.3; // 70% chance of being active
+              
+              newData.push({
+                id: id,
+                name: `${firstName} ${lastName}`,
+                age: age,
+                city: city,
+                department: department,
+                active: active
+              });
+            }
+            
+            // Stop generating data after 1000 records for demo
+            // Page 0: IDs 1-100, Page 1: IDs 101-200, Page 2: IDs 201-300, etc.
+            // Page 9: IDs 901-1000, Page 10: startId = 1001 should return empty
+            if (startId > 1000) {
+              resolve([]); // No more data
+            } else {
+              resolve(newData);
+            }
+          }, 300 + Math.random() * 500); // Simulate 300-800ms network delay
+        });
+      }
+      
+      // Initialize virtual scrolling table with first 100 records
+      simulateDataFetch(0, 100).then(initialData => {
+        const virtualScrollingTable = new DivTable(monaco, {
+          tableWidgetElement: divTable3,
+          data: initialData,
+          columns: [
+            {
+              field: 'id',
+              label: 'ID',
+              responsive: { priority: 'low', size: 'fixed-narrow', hideMobile: true },
+              groupable: false,
+              primaryKey: true
+            },
+            {
+              field: 'name',
+              label: 'Name',
+              responsive: { priority: 'high', size: 'flexible-medium', allowWrap: true },
+              groupable: false
+            },
+            {
+              field: 'age',
+              label: 'Age',
+              render: (value) => value ? `${value} years` : '',
+              responsive: { priority: 'medium', size: 'fixed-medium', hideSmall: true },
+              groupable: true
+            },
+            {
+              field: 'department',
+              label: 'Department',
+              responsive: { priority: 'medium', size: 'flexible-medium', allowWrap: true },
+              groupable: true
+            },
+            {
+              field: 'city',
+              label: 'City',
+              render: (value) => value ? `<a href="https://www.example.com?city=${encodeURIComponent(value)}" target="_blank" rel="noopener noreferrer">${value}</a>` : '',
+              responsive: { priority: 'medium', size: 'flexible-medium', allowWrap: true },
+              groupable: true
+            },
+            {
+              field: 'active',
+              label: 'Status',
+              render: (value) => {
+                if (value === true) return '✅ Active';
+                if (value === false) return '❌ Inactive';
+                return '';
+              },
+              responsive: { priority: 'high', size: 'flexible-small' },
+              groupable: true
+            }
+          ],
+          showCheckboxes: true,
+          multiSelect: true,
+          
+          // Virtual scrolling configuration
+          virtualScrolling: true,
+          pageSize: 100,
+          totalRecords: 1000, // Total records available on server
+          loadingThreshold: 20, // Load next page when within 20 records of the end (80% of page size)
+          
+          // Callbacks
+          onNextPage: async (page, pageSize) => {
+            console.log(`📄 Loading page ${page} (${pageSize} records per page)`);
+            return await simulateDataFetch(page, pageSize);
+          },
+          
+          onSelectionChange: (rows) => {
+            console.log("📋 Virtual Table - Selected rows:", rows.map(r => r?.name || 'No name').filter(Boolean));
+          },
+          
+          onRowFocus: (row, group) => {
+            if (group) {
+              updateDetailsPanel('details3', null, group);
+            } else if (row) {
+              updateDetailsPanel('details3', row, null);
+            } else {
+              updateDetailsPanel('details3', null, null);
+            }
+          }
+        });
+        
+        // Optional: Group by department to demonstrate virtual scrolling with grouping
+        setTimeout(() => {
+          virtualScrollingTable.group('department');
+        }, 1000);
+      });
 
       // API Examples - Initialize query feature like in smart-table:
       // 1. Apply filter - Enable query functionality

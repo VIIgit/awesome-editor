@@ -13,6 +13,15 @@ class DivTable {
     this.onSelectionChange = options.onSelectionChange || (() => {});
     this.onRowFocus = options.onRowFocus || (() => {});
     
+    // Virtual scrolling options
+    this.virtualScrolling = options.virtualScrolling || false;
+    this.pageSize = options.pageSize || 100;
+    this.totalRecords = options.totalRecords || this.data.length;
+    this.onNextPage = options.onNextPage || (() => {});
+    this.onPreviousPage = options.onPreviousPage || (() => {});
+    this.loadingThreshold = options.loadingThreshold || Math.floor(this.pageSize * 0.8); // Default: 80% of page size
+    this.scrollThreshold = options.scrollThreshold || 0.95; // Fallback for percentage-based logic
+    
     // Internal state
     this.filteredData = [...this.data];
     this.sortColumn = null;
@@ -23,6 +32,14 @@ class DivTable {
     this.focusedRowId = null;
     this.currentQuery = '';
     this._lastFocusCallback = { rowId: null, groupKey: null }; // Track last focus callback to prevent duplicates
+    
+    // Virtual scrolling state
+    this.currentPage = 0;
+    this.isLoading = false;
+    this.hasMoreData = true;
+    this.estimatedRowHeight = 40; // Default row height for calculations
+    this.visibleStartIndex = 0;
+    this.visibleEndIndex = this.pageSize;
     
     // Find primary key field first
     this.primaryKeyField = this.columns.find(col => col.primaryKey)?.field || 'id';
@@ -159,6 +176,11 @@ class DivTable {
         this.headerContainer.classList.add('scrolled');
       } else {
         this.headerContainer.classList.remove('scrolled');
+      }
+      
+      // Handle virtual scrolling if enabled
+      if (this.virtualScrolling && !this.isLoading) {
+        this.handleVirtualScroll();
       }
     });
   }
@@ -1502,32 +1524,123 @@ class DivTable {
   updateInfoSection() {
     if (!this.infoSection) return;
     
-    const total = this.data.length;
+    const total = this.virtualScrolling ? this.totalRecords : this.data.length;
+    const loaded = this.data.length;
     const filtered = this.filteredData.length;
     const selected = this.selectedRows.size;
     
-    let info = '';
+    // Clear existing content
+    this.infoSection.innerHTML = '';
     
+    // First line: Selection info (only show when there are selections)
     if (selected > 0) {
-      info = `${selected} selected`;
-      if (filtered < total) {
-        // When filtered: show "X selected of Y filtered (Z total)"
-        info += ` of ${filtered} filtered (${total} records)`;
+      const selectionLine = document.createElement('div');
+      selectionLine.className = 'info-line';
+      
+      const selectionInfo = document.createElement('span');
+      selectionInfo.className = 'info-selection';
+      selectionInfo.textContent = `${selected} selected`;
+      
+      selectionLine.appendChild(selectionInfo);
+      this.infoSection.appendChild(selectionLine);
+    }
+    
+    // Second line: Stats (always shown) - smaller font
+    const statsLine = document.createElement('div');
+    statsLine.className = 'info-line secondary';
+    
+    const statsInfo = document.createElement('span');
+    statsInfo.className = 'info-stats';
+    
+    let statsText = '';
+    if (this.virtualScrolling) {
+      // Virtual scrolling mode
+      if (filtered < loaded) {
+        // Has filtering applied
+        if (loaded < total) {
+          // Filtered and still loading: "2 filtered (15% of 13 total)"
+          const loadPercentage = Math.round((loaded / total) * 100);
+          statsText = `${filtered} filtered (${loadPercentage}% of ${total} total)`;
+        } else {
+          // Filtered and fully loaded: "2 filtered (13 total)"
+          statsText = `${filtered} filtered (${total} total)`;
+        }
       } else {
-        // When not filtered: show "X selected of Y total"
-        info += ` of ${total} records`;
+        // No filtering
+        if (loaded < total) {
+          const percentage = Math.round((loaded / total) * 100);
+          statsText = `${percentage}% of ${total} total`;
+        } else {
+          statsText = `${total} total`;
+        }
       }
     } else {
+      // Regular mode
       if (filtered < total) {
-        // When filtered but none selected: show "Y filtered (Z total)"
-        info = `${filtered} filtered (${total} records)`;
+        // Simple filtered format: "2 filtered (13 total)"
+        statsText = `${filtered} filtered (${total} total)`;
       } else {
-        // When not filtered and none selected: show "Y records"
-        info = `${total} records`;
+        statsText = `${total} total`;
       }
     }
     
-    this.infoSection.textContent = info;
+    statsInfo.textContent = statsText;
+    statsLine.appendChild(statsInfo);
+    this.infoSection.appendChild(statsLine);
+    
+    // Third line: Visual progress bar
+    this.createProgressBar(loaded, total, filtered);
+  }
+
+  createProgressBar(loaded, total, filtered) {
+    const progressLine = document.createElement('div');
+    progressLine.className = 'progress-line';
+    
+    // Show progress bar for loading or filtering states
+    if ((this.virtualScrolling && loaded < total) || filtered < total) {
+      const progressContainer = document.createElement('div');
+      progressContainer.className = 'loading-progress';
+      
+      // When both filtered and loading, show layered progress bars
+      if (this.virtualScrolling && loaded < total && filtered < loaded) {
+        // Filtered + Loading state: show both layers
+        const filteredPercentage = (filtered / total) * 100;
+        const loadedPercentage = (loaded / total) * 100;
+        
+        // Background loading bar (transparent animated)
+        const loadingBar = document.createElement('div');
+        loadingBar.className = 'loading-progress-bar loading-layer';
+        loadingBar.style.width = `${loadedPercentage}%`;
+        
+        // Foreground filtered bar (solid)
+        const filteredBar = document.createElement('div');
+        filteredBar.className = 'loading-progress-bar filtered-layer';
+        filteredBar.style.width = `${filteredPercentage}%`;
+        
+        progressContainer.appendChild(loadingBar);
+        progressContainer.appendChild(filteredBar);
+        progressContainer.setAttribute('data-state', 'filtered-loading');
+      } else if (this.virtualScrolling && loaded < total) {
+        // Loading only
+        const percentage = (loaded / total) * 100;
+        const progressBar = document.createElement('div');
+        progressBar.className = 'loading-progress-bar';
+        progressBar.style.width = `${percentage}%`;
+        progressContainer.appendChild(progressBar);
+        progressContainer.setAttribute('data-state', 'loading');
+      } else if (filtered < total) {
+        // Filtered only
+        const percentage = (filtered / total) * 100;
+        const progressBar = document.createElement('div');
+        progressBar.className = 'loading-progress-bar';
+        progressBar.style.width = `${percentage}%`;
+        progressContainer.appendChild(progressBar);
+        progressContainer.setAttribute('data-state', 'filtered');
+      }
+      
+      progressLine.appendChild(progressContainer);
+      this.infoSection.appendChild(progressLine);
+    }
   }
 
   // Public API methods
@@ -1669,6 +1782,184 @@ class DivTable {
       
       console.log(`Group "${group.value}": ${selectedInGroup.length}/${groupItemIds.length} selected (${state})`);
     });
+  }
+
+  // Virtual Scrolling Methods
+  handleVirtualScroll() {
+    const scrollTop = this.bodyContainer.scrollTop;
+    const scrollHeight = this.bodyContainer.scrollHeight;
+    const clientHeight = this.bodyContainer.clientHeight;
+    
+    // Calculate current visible position and determine loading trigger
+    const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+    const currentDataLength = this.filteredData.length;
+    
+    // Calculate which record would be approximately visible at current scroll position
+    const estimatedVisibleRecord = Math.floor(scrollPercentage * currentDataLength);
+    
+    // Calculate the trigger point: total records minus loading threshold
+    const triggerPoint = currentDataLength - this.loadingThreshold;
+    
+    // Load next page when we're close to the end of currently loaded data
+    if (estimatedVisibleRecord >= triggerPoint && this.hasMoreData && !this.isLoading) {
+      console.log('📊 Virtual scroll triggered:', {
+        estimatedVisibleRecord: estimatedVisibleRecord,
+        triggerPoint: triggerPoint,
+        loadingThreshold: this.loadingThreshold,
+        currentDataLength: currentDataLength,
+        hasMoreData: this.hasMoreData,
+        isLoading: this.isLoading
+      });
+      this.loadNextPage();
+    }
+  }
+
+  async loadNextPage() {
+    if (this.isLoading || !this.hasMoreData) {
+      console.log('🚫 Load next page skipped:', { isLoading: this.isLoading, hasMoreData: this.hasMoreData });
+      return;
+    }
+    
+    console.log('🔄 Loading next page...', { currentPage: this.currentPage, dataLength: this.data.length });
+    
+    this.isLoading = true;
+    this.showLoadingIndicator();
+    
+    try {
+      // Call the pagination callback
+      const newData = await this.onNextPage(this.currentPage + 1, this.pageSize);
+      
+      console.log('📦 Received new data:', { newRecords: newData?.length || 0, page: this.currentPage + 1 });
+      
+      if (newData && Array.isArray(newData) && newData.length > 0) {
+        // Add new data to the existing dataset
+        this.data.push(...newData);
+        
+        // Update filtered data if no active query
+        if (!this.currentQuery.trim()) {
+          this.filteredData.push(...newData);
+        } else {
+          // Re-apply query to include new data
+          this.applyQuery(this.currentQuery);
+        }
+        
+        this.currentPage++;
+        
+        // Check if we have more data
+        this.hasMoreData = newData.length === this.pageSize;
+        
+        console.log('✅ Page loaded successfully:', { 
+          totalRecords: this.data.length, 
+          currentPage: this.currentPage, 
+          hasMoreData: this.hasMoreData 
+        });
+        
+        // Update the query engine with new data
+        this.queryEngine.setObjects(this.data);
+        
+        // Re-render to show new data
+        this.render();
+      } else {
+        // No more data available
+        this.hasMoreData = false;
+        console.log('🏁 No more data available');
+      }
+    } catch (error) {
+      console.error('❌ Error loading next page:', error);
+      this.showErrorIndicator();
+    } finally {
+      this.isLoading = false;
+      this.hideLoadingIndicator();
+    }
+  }
+
+  showLoadingIndicator() {
+    let indicator = this.bodyContainer.querySelector('.loading-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'loading-indicator';
+      indicator.innerHTML = `
+        <div class="loading-spinner"></div>
+        <span>Loading more records...</span>
+      `;
+      this.bodyContainer.appendChild(indicator);
+    }
+    indicator.style.display = 'flex';
+  }
+
+  hideLoadingIndicator() {
+    const indicator = this.bodyContainer.querySelector('.loading-indicator');
+    if (indicator) {
+      indicator.style.display = 'none';
+    }
+  }
+
+  showErrorIndicator() {
+    let indicator = this.bodyContainer.querySelector('.error-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'error-indicator';
+      indicator.innerHTML = `
+        <span>Error loading data. Please try again.</span>
+        <button class="retry-button">Retry</button>
+      `;
+      
+      const retryButton = indicator.querySelector('.retry-button');
+      retryButton.addEventListener('click', () => {
+        this.hideErrorIndicator();
+        this.loadNextPage();
+      });
+      
+      this.bodyContainer.appendChild(indicator);
+    }
+    indicator.style.display = 'flex';
+  }
+
+  hideErrorIndicator() {
+    const indicator = this.bodyContainer.querySelector('.error-indicator');
+    if (indicator) {
+      indicator.style.display = 'none';
+    }
+  }
+
+  // Public API for virtual scrolling
+  setTotalRecords(total) {
+    this.totalRecords = total;
+    this.hasMoreData = this.data.length < total;
+    this.updateInfoSection();
+  }
+
+  setHasMoreData(hasMore) {
+    this.hasMoreData = hasMore;
+  }
+
+  resetPagination() {
+    this.currentPage = 0;
+    this.isLoading = false;
+    this.hasMoreData = true;
+    this.data = this.data.slice(0, this.pageSize); // Keep only first page
+    this.filteredData = [...this.data];
+    this.hideLoadingIndicator();
+    this.hideErrorIndicator();
+    this.render();
+  }
+
+  appendData(newData) {
+    if (newData && Array.isArray(newData)) {
+      this.data.push(...newData);
+      
+      // Update filtered data if no active query
+      if (!this.currentQuery.trim()) {
+        this.filteredData.push(...newData);
+      } else {
+        // Re-apply query to include new data
+        this.applyQuery(this.currentQuery);
+      }
+      
+      // Update the query engine with new data
+      this.queryEngine.setObjects(this.data);
+      this.render();
+    }
   }
 }
 

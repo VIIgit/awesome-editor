@@ -260,7 +260,120 @@ html, body {
   text-align: right;
   font-size: 0.9em;
   color: #666;
-  padding: 8px 0;
+  padding: 0;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.info-line {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.info-line.secondary {
+  font-size: 0.8em;
+  color: #888;
+}
+
+.info-selection {
+  font-weight: 600;
+}
+
+.info-stats {
+  color: #666;
+}
+
+.progress-line {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.loading-progress {
+  width: 120px;
+  height: 3px;
+  background: #e9ecef;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #007bffd1, #0057b3c5);
+
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.loading-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: loading-shimmer 1.5s infinite;
+}
+
+/* Layered progress bars for filtered + loading state */
+.loading-progress[data-state="filtered-loading"] {
+  position: relative;
+}
+
+.loading-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: linear-gradient(90deg, rgba(0,123,255,0.8), rgba(0,86,179,0.8));
+  opacity: 0.8;
+}
+
+.loading-layer::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: loading-shimmer 1.5s infinite;
+}
+
+.filtered-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #666;
+  z-index: 1;
+}
+
+.filtered-layer::after {
+  display: none; /* No shimmer on filtered layer */
+}
+
+/* Different states for progress bar */
+.loading-progress[data-state="filtered"] .loading-progress-bar {
+  background: #666;
+}
+
+.loading-progress[data-state="filtered"] .loading-progress-bar::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: filtered-shimmer 2s infinite;
+}
+
+.loading-progress[data-state="loading"] .loading-progress-bar {
+  background: linear-gradient(90deg, #007bffd1, #0057b3c5);
+}
+
+@keyframes loading-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes filtered-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 /* Table container using CSS Grid */
@@ -274,7 +387,7 @@ html, body {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.95);
+  background: #f8f9fa;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid #e9ecef;
@@ -422,7 +535,7 @@ input[type="checkbox"]:indeterminate::after {
 }
 
 .div-table-row.group-header.focused:hover {
-  background-color: rgba(0, 123, 255, 0.05) !important; /* Same hover as regular rows */
+  background-color: rgb(240, 247, 255);
 }
 
 /* Group header styling */
@@ -652,4 +765,61 @@ input[type="checkbox"]:indeterminate::after {
 h1 {
   margin-bottom: 1rem;
   color: #2c3e50;
+}
+
+/* Virtual Scrolling Indicators */
+.loading-indicator, .error-indicator {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.loading-indicator {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  color: #6c757d;
+}
+
+.error-indicator {
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  color: #c53030;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e9ecef;
+  border-top: 2px solid #6c757d;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.retry-button {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.retry-button:hover {
+  background: #c82333;
+}
+
+.retry-button:active {
+  background: #bd2130;
 }
