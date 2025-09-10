@@ -1922,11 +1922,71 @@ class DivTable {
     }
   }
 
-  // Public API for virtual scrolling
+  // Public API for virtual scrolling configuration
   setTotalRecords(total) {
+    if (typeof total !== 'number' || total < 0) {
+      console.warn('DivTable: totalRecords must be a non-negative number');
+      return;
+    }
+    
     this.totalRecords = total;
     this.hasMoreData = this.data.length < total;
+    
+    // Update info section to reflect new total
     this.updateInfoSection();
+    
+    console.log(`DivTable: Updated totalRecords to ${total}, hasMoreData: ${this.hasMoreData}`);
+  }
+
+  setPageSize(newPageSize) {
+    if (typeof newPageSize !== 'number' || newPageSize <= 0) {
+      console.warn('DivTable: pageSize must be a positive number');
+      return;
+    }
+    
+    const oldPageSize = this.pageSize;
+    this.pageSize = newPageSize;
+    
+    // Recalculate loading threshold based on new page size
+    this.loadingThreshold = Math.floor(this.pageSize * 0.8);
+    
+    // Update visible end index for virtual scrolling
+    this.visibleEndIndex = Math.min(this.visibleStartIndex + this.pageSize, this.data.length);
+    
+    // Update info section to reflect new configuration
+    this.updateInfoSection();
+    
+    console.log(`DivTable: Updated pageSize from ${oldPageSize} to ${newPageSize}, loadingThreshold: ${this.loadingThreshold}`);
+  }
+
+  setVirtualScrollingConfig({ totalRecords, pageSize, loadingThreshold }) {
+    let updated = false;
+    
+    if (typeof totalRecords === 'number' && totalRecords >= 0) {
+      this.totalRecords = totalRecords;
+      this.hasMoreData = this.data.length < totalRecords;
+      updated = true;
+    }
+    
+    if (typeof pageSize === 'number' && pageSize > 0) {
+      this.pageSize = pageSize;
+      this.visibleEndIndex = Math.min(this.visibleStartIndex + this.pageSize, this.data.length);
+      updated = true;
+    }
+    
+    if (typeof loadingThreshold === 'number' && loadingThreshold > 0) {
+      this.loadingThreshold = loadingThreshold;
+      updated = true;
+    } else if (typeof pageSize === 'number') {
+      // Recalculate loading threshold if pageSize changed but threshold wasn't provided
+      this.loadingThreshold = Math.floor(this.pageSize * 0.8);
+      updated = true;
+    }
+    
+    if (updated) {
+      this.updateInfoSection();
+      console.log(`DivTable: Updated virtual scrolling config - totalRecords: ${this.totalRecords}, pageSize: ${this.pageSize}, loadingThreshold: ${this.loadingThreshold}`);
+    }
   }
 
   setHasMoreData(hasMore) {
@@ -1958,8 +2018,44 @@ class DivTable {
       
       // Update the query engine with new data
       this.queryEngine.setObjects(this.data);
-      this.render();
     }
+  }
+
+  replaceData(newData) {
+    if (!newData || !Array.isArray(newData)) {
+      console.warn('replaceData requires a valid array');
+      return;
+    }
+
+    // Replace the entire data array
+    this.data = [...newData];
+    
+    // Update the query engine with new data
+    this.queryEngine.setObjects(this.data);
+    
+    // Clear any existing query and filtered state
+    this.currentQuery = '';
+    this.filteredData = [...this.data];
+    
+    // Clear selection state
+    this.selectedRecords.clear();
+    
+    // Reset virtual scrolling state
+    this.virtualScrollingState = {
+      scrollTop: 0,
+      displayStartIndex: 0,
+      displayEndIndex: Math.min(this.pageSize, this.data.length),
+      isLoading: false,
+      loadedPages: new Set([1])
+    };
+    
+    // Reset pagination to first page
+    this.currentPage = 1;
+    this.startId = 1;
+    
+    // Update info display and re-render
+    this.updateInfoSection();
+    this.render();
   }
 }
 
