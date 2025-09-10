@@ -1586,51 +1586,68 @@ function setupEditorTheme(monaco) {
  * @param {object} options.fieldNames The field name definitions with types and valid values
  * @returns {object} The configured editor features
  */
-// Track registered languages and their field schemas
+// Track registered languages and their field schemas with better isolation
 const registeredLanguages = new Map();
+let languageCounter = 0;
 
-// Generate a consistent ID for a given field schema
-function generateLanguageId(fieldNames) {
-  // Sort field names to ensure consistent order
+// Generate a unique ID for each editor instance
+function generateUniqueLanguageId(fieldNames) {
+  // Create a hash of the field schema for consistency
   const sortedFields = Object.entries(fieldNames)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([name, def]) => `${name}:${def.type}`)
+    .map(([name, def]) => `${name}:${def.type}:${def.values ? def.values.join('|') : ''}`)
     .join(',');
   
-  return `querylang-${sortedFields}`;
+  // Create a hash to make it more compact
+  let hash = 0;
+  for (let i = 0; i < sortedFields.length; i++) {
+    const char = sortedFields.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  
+  // Use absolute hash value and increment counter for uniqueness
+  const uniqueId = `querylang-${Math.abs(hash)}-${++languageCounter}`;
+  return uniqueId;
 }
 
 function setupQueryLanguage(monaco, { fieldNames = {} } = {}) {
-  // Generate language ID based on field schema
-  const languageId = generateLanguageId(fieldNames);
+  // Always generate a unique language ID for this editor instance
+  const languageId = generateUniqueLanguageId(fieldNames);
 
-  // Check if this language is already registered
-  if (!registeredLanguages.has(languageId)) {
-    // Register new language instance
-    monaco.languages.register({ id: languageId });
-    
-    // Set up all language features
-    const completionSetup = setupCompletionProvider(monaco, { fieldNames, languageId });
-    const disposables = [
-      setupLanguageConfiguration(monaco, languageId),
-      setupTokenProvider(monaco, { fieldNames, languageId }),
-      completionSetup.provider,
-      setupValidation(monaco, { fieldNames, languageId })
-    ];
-    
-    // Set up theme (shared across all instances)
+  // Register new language instance with unique ID
+  monaco.languages.register({ id: languageId });
+  
+  // Set up all language features with the unique language ID
+  const completionSetup = setupCompletionProvider(monaco, { fieldNames, languageId });
+  const disposables = [
+    setupLanguageConfiguration(monaco, languageId),
+    setupTokenProvider(monaco, { fieldNames, languageId }),
+    completionSetup.provider,
+    setupValidation(monaco, { fieldNames, languageId })
+  ];
+  
+  // Set up theme only once (shared across all instances, but that's okay)
+  if (!monaco._queryThemeSetup) {
     setupEditorTheme(monaco);
-
-    // Store the registration with auto-insert setup
-    registeredLanguages.set(languageId, { 
-      fieldNames,
-      setupAutoInsertBrackets: completionSetup.setupAutoInsertBrackets
-    });
+    monaco._queryThemeSetup = true;
   }
+
+  // Store the registration info
+  registeredLanguages.set(languageId, { 
+    fieldNames,
+    setupAutoInsertBrackets: completionSetup.setupAutoInsertBrackets,
+    disposables
+  });
 
   return {
     languageId,
-    setupAutoInsertBrackets: registeredLanguages.get(languageId).setupAutoInsertBrackets
+    setupAutoInsertBrackets: completionSetup.setupAutoInsertBrackets,
+    dispose: () => {
+      // Clean up this specific language registration
+      disposables.forEach(d => d && d.dispose && d.dispose());
+      registeredLanguages.delete(languageId);
+    }
   };
 }
 
@@ -1646,10 +1663,11 @@ function setupQueryLanguage(monaco, { fieldNames = {} } = {}) {
  * @returns {object} The created editor instance and its model
  */
 function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = '', placeholder = '', showClearButton = true } = {}) {
-  // Set up language features for this editor instance
-  const { languageId, setupAutoInsertBrackets } = setupQueryLanguage(monaco, { fieldNames });
+  // Set up isolated language features for this specific editor instance
+  const languageSetup = setupQueryLanguage(monaco, { fieldNames });
+  const { languageId, setupAutoInsertBrackets } = languageSetup;
 
-  // Create editor model with initial value
+  // Create editor model with unique language ID
   const model = monaco.editor.createModel(initialValue, languageId);
 
   // Create wrapper div for proper sizing with clear button container
@@ -1740,7 +1758,7 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
     };
   }
 
-  // Create editor with standard configuration
+  // Create editor with standard configuration and proper widget positioning
   const editor = monaco.editor.create(editorContainer, {
     model,
     theme: 'queryTheme',
@@ -1760,7 +1778,7 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
     wordWrap: 'off',
     renderLineHighlight: 'none',
     overviewRulerBorder: false,
-    fixedOverflowWidgets: true,
+    fixedOverflowWidgets: true,  // This is crucial for proper popup positioning
     renderValidationDecorations: 'editable',
     automaticLayout: true,
     placeholder,
@@ -1772,16 +1790,18 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
       comments: false,
       strings: false
     },
-    quickSuggestionsDelay: 100, // Faster suggestions
+    quickSuggestionsDelay: 100,
     suggestFontSize: 13,
     suggestLineHeight: 20,
     suggest: {
       insertMode: 'insert',
-      showStatusBar: false
+      showStatusBar: false,
+      // Ensure suggestions are positioned relative to this editor
+      localityBonus: true
     }
   });
 
-  // Set up auto-insert brackets functionality
+  // Set up auto-insert brackets functionality for this specific editor
   const autoInsertDisposable = setupAutoInsertBrackets(editor);
 
   let contentChangeDisposable = null;
@@ -1849,7 +1869,6 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
         }
         
         // Remove focus from the Monaco editor by focusing the next element directly
-        // This will automatically blur the Monaco editor when the new element gets focus
         focusableArray[nextIndex].focus();
       }
     }
@@ -1865,12 +1884,11 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
     }
   });
 
-  // Prevent newlines from any other source (like programmatic insertion)
+  // Prevent newlines from any other source
   model.onDidChangeContent((e) => {
     const currentValue = model.getValue();
     if (/[\r\n]/.test(currentValue)) {
       const cleanValue = currentValue.replace(/[\r\n]/g, ' ');
-      // Use pushEditOperations to maintain undo history
       model.pushEditOperations([], [{
         range: model.getFullModelRange(),
         text: cleanValue
@@ -1878,13 +1896,15 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
     }
   });
 
-  // Add cleanup method to the editor
+  // Enhanced cleanup method that also disposes language features
   const originalDispose = editor.dispose.bind(editor);
   editor.dispose = () => {
     autoInsertDisposable.dispose();
     if (contentChangeDisposable) {
       contentChangeDisposable.dispose();
     }
+    // Clean up the isolated language features
+    languageSetup.dispose();
     originalDispose();
   };
 
