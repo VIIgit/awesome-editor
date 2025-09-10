@@ -2033,12 +2033,15 @@ class DivTable {
     // Update the query engine with new data
     this.queryEngine.setObjects(this.data);
     
-    // Clear any existing query and filtered state
-    this.currentQuery = '';
-    this.filteredData = [...this.data];
+    // Keep the current query and re-apply it to filter the new data
+    if (this.currentQuery && this.currentQuery.trim()) {
+      this.applyQuery(this.currentQuery);
+    } else {
+      this.filteredData = [...this.data];
+    }
     
-    // Clear selection state
-    this.selectedRecords.clear();
+    // Clear selection state (using correct property name)
+    this.selectedRows.clear();
     
     // Reset virtual scrolling state
     this.virtualScrollingState = {
