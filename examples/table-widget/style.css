@@ -1,15 +1,5 @@
 /* DivTable Widget - Modern CSS Grid/Flexbox Based Table */
 
-/* Basic styling */
-html, body {
-  width: 100%;
-  max-width: 100vw;
-  margin: 0;
-  padding: 20px;
-  box-sizing: border-box;
-  overflow-x: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
 
 /* Container */
 .container {
@@ -295,7 +285,7 @@ html, body {
 
 .loading-progress {
   width: 120px;
-  height: 3px;
+  height: 4px;
   background: #e9ecef;
   border-radius: 2px;
   overflow: hidden;
@@ -304,21 +294,21 @@ html, body {
 
 .loading-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #007bffd1, #0057b3c5);
-
+  background: #007bff;
   border-radius: 2px;
   transition: width 0.3s ease;
   position: relative;
 }
 
-.loading-progress-bar::after {
+/* Only animate shimmer when actually loading */
+.loading-progress-bar.loading::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
   right: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
   animation: loading-shimmer 1.5s infinite;
 }
 
@@ -357,13 +347,13 @@ html, body {
   background: #666;
 }
 
-.loading-progress[data-state="filtered"] .loading-progress-bar::after {
+.loading-progress[data-state="filtered"] .loading-progress-bar.loading::after {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
   animation: filtered-shimmer 2s infinite;
 }
 
 .loading-progress[data-state="loading"] .loading-progress-bar {
-  background: linear-gradient(90deg, #007bffd1, #0057b3c5);
+  background: #007bff;
 }
 
 @keyframes loading-shimmer {
@@ -798,6 +788,32 @@ h1 {
   border-top: 2px solid #6c757d;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+/* Loading Placeholder Rows */
+.div-table-row.loading-placeholder {
+  background: rgba(249, 249, 247, 0.5);
+  border-bottom: 1px solid #f1f3f4;
+  pointer-events: none;
+  cursor: default;
+}
+
+.div-table-row.loading-placeholder:hover {
+  background: rgba(249, 249, 247, 0.5) !important;
+}
+
+.div-table-cell.loading-cell {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+}
+
+.loading-shimmer-content {
+  height: 16px;
+  background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  animation: loading-shimmer 1.5s infinite;
 }
 
 @keyframes spin {

@@ -83,12 +83,15 @@ class DivTable {
   }
 
   getOrderedColumns() {
+    // Filter out hidden columns first
+    let visibleColumns = this.columns.filter(col => !col.hidden);
+    
     if (!this.groupByField) {
-      return this.columns;
+      return visibleColumns;
     }
     
     // When grouping, move the grouped column to second position (after checkbox)
-    const orderedColumns = [...this.columns];
+    const orderedColumns = [...visibleColumns];
     const groupedColumnIndex = orderedColumns.findIndex(col => col.field === this.groupByField);
     
     if (groupedColumnIndex > 0) {
@@ -99,6 +102,11 @@ class DivTable {
     }
     
     return orderedColumns;
+  }
+
+  getAllColumns() {
+    // Returns all columns including hidden ones - useful for data operations
+    return this.columns;
   }
 
   createTableStructure(container) {
@@ -286,9 +294,9 @@ class DivTable {
     // Clear existing options
     groupBySelect.innerHTML = '<option value="">Group by...</option>';
 
-    // Add groupable columns
+    // Add groupable columns (excluding hidden ones)
     this.columns.forEach(col => {
-      if (col.groupable !== false) {
+      if (col.groupable !== false && !col.hidden) {
         const option = document.createElement('option');
         option.value = col.field;
         option.textContent = col.label || col.field;
@@ -1683,6 +1691,23 @@ class DivTable {
   }
 
   group(field) {
+    // Validate that the field exists and is not hidden
+    if (field) {
+      const column = this.columns.find(col => col.field === field);
+      if (!column) {
+        console.warn(`DivTable: Cannot group by field '${field}' - field not found in columns`);
+        return;
+      }
+      if (column.hidden) {
+        console.warn(`DivTable: Cannot group by field '${field}' - hidden columns cannot be used for grouping`);
+        return;
+      }
+      if (column.groupable === false) {
+        console.warn(`DivTable: Cannot group by field '${field}' - column is marked as not groupable`);
+        return;
+      }
+    }
+    
     this.groupByField = field || null;
     
     // Update the group-by dropdown to reflect the programmatic change
@@ -1713,20 +1738,133 @@ class DivTable {
   }
 
   addRecord(record) {
-    this.data.push(record);
-    this.applyQuery(this.currentQuery); // Re-apply current filter
+    if (!record || typeof record !== 'object') {
+      console.warn('addRecord requires a valid record object');
+      return false;
+    }
+    
+    // Ensure the record has a primary key
+    if (!record[this.primaryKeyField]) {
+      console.warn(`addRecord: Record must have a ${this.primaryKeyField} field`);
+      return false;
+    }
+    
+    // Check for existing record with same primary key (upsert behavior)
+    const recordId = String(record[this.primaryKeyField]);
+    const existingIndex = this.data.findIndex(item => 
+      String(item[this.primaryKeyField]) === recordId
+    );
+    
+    if (existingIndex >= 0) {
+      // Update existing record
+      this.data[existingIndex] = { ...record };
+      console.log(`addRecord: Updated existing record with ${this.primaryKeyField} '${recordId}'`);
+    } else {
+      // Add new record
+      this.data.push(record);
+      console.log(`addRecord: Added new record with ${this.primaryKeyField} '${recordId}'`);
+    }
+    
+    // Update the query engine with new/updated data
+    this.queryEngine.setObjects(this.data);
+    
+    // Update query editor if field values changed (for completion suggestions)
+    this.updateQueryEditorIfNeeded();
+    
+    // Re-apply current filter to include new/updated record if it matches
+    this.applyQuery(this.currentQuery);
+    
+    return true;
   }
 
   removeRecord(id) {
-    const index = this.data.findIndex(item => item[this.primaryKeyField] === id);
-    if (index >= 0) {
-      this.data.splice(index, 1);
-      this.applyQuery(this.currentQuery); // Re-apply current filter
+    if (id === undefined || id === null) {
+      console.warn('removeRecord requires a valid ID');
+      return false;
     }
+    
+    const recordId = String(id);
+    const index = this.data.findIndex(item => 
+      String(item[this.primaryKeyField]) === recordId
+    );
+    
+    if (index >= 0) {
+      const removedRecord = this.data[index];
+      this.data.splice(index, 1);
+      
+      // Remove from selection if it was selected
+      this.selectedRows.delete(recordId);
+      
+      // Update the query engine with updated data
+      this.queryEngine.setObjects(this.data);
+      
+      // Update query editor if field values changed (for completion suggestions)
+      this.updateQueryEditorIfNeeded();
+      
+      // Re-apply current filter
+      this.applyQuery(this.currentQuery);
+      
+      return removedRecord;
+    }
+    
+    console.warn(`removeRecord: Record with ${this.primaryKeyField} '${recordId}' not found`);
+    return false;
   }
 
   getSelectedRows() {
     return Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean);
+  }
+
+  // Helper method to update query editor when field values change
+  updateQueryEditorIfNeeded() {
+    if (!this.queryEditor || !this.queryEditor.editor) {
+      return;
+    }
+
+    // Check if we need to update field values for completion suggestions
+    // This is particularly important for fields with specific value sets
+    const hasFieldsWithValues = this.columns.some(col => 
+      col.values || (col.field && this.data.length > 0)
+    );
+
+    if (hasFieldsWithValues) {
+      // Recreate field names object with updated values
+      const updatedFieldNames = {};
+      
+      this.columns.forEach(col => {
+        if (!col.field) return;
+        
+        // Determine field type from data if not explicitly set
+        let fieldType = col.type || 'string';
+        let fieldValues = col.values;
+        
+        // If no explicit values but we have data, extract unique values for string fields
+        if (!fieldValues && this.data.length > 0) {
+          const uniqueValues = [...new Set(
+            this.data
+              .map(item => item[col.field])
+              .filter(val => val !== null && val !== undefined && val !== '')
+              .map(val => String(val))
+          )].sort();
+          
+          // Only include values for string fields with reasonable number of unique values
+          if (fieldType === 'string' && uniqueValues.length <= 50 && uniqueValues.length > 0) {
+            fieldValues = uniqueValues;
+          }
+        }
+        
+        updatedFieldNames[col.field] = {
+          type: fieldType,
+          values: fieldValues,
+          groupable: col.groupable !== false
+        };
+      });
+
+      // Update the query editor's field names if they changed
+      // Note: This would require the query editor to support dynamic updates
+      // For now, we'll just log that an update might be beneficial
+      console.log('🔄 Field values may have changed, query editor could benefit from refresh');
+    }
   }
 
   // Debug method to verify data consistency
@@ -1825,6 +1963,12 @@ class DivTable {
     this.isLoading = true;
     this.showLoadingIndicator();
     
+    // Show loading placeholder rows for the next page
+    this.showLoadingPlaceholders();
+    
+    // Start progress bar animation
+    this.startProgressBarAnimation();
+    
     try {
       // Call the pagination callback
       const newData = await this.onNextPage(this.currentPage + 1, this.pageSize);
@@ -1832,33 +1976,39 @@ class DivTable {
       console.log('📦 Received new data:', { newRecords: newData?.length || 0, page: this.currentPage + 1 });
       
       if (newData && Array.isArray(newData) && newData.length > 0) {
-        // Add new data to the existing dataset
-        this.data.push(...newData);
+        // Use appendData for all the heavy lifting - it handles:
+        // - Validation
+        // - Upsert behavior (add new, update existing)
+        // - Query engine updates
+        // - Query editor refresh
+        // - Re-applying current query/filter
+        // - Info section updates and re-rendering
+        const result = this.appendData(newData);
         
-        // Update filtered data if no active query
-        if (!this.currentQuery.trim()) {
-          this.filteredData.push(...newData);
-        } else {
-          // Re-apply query to include new data
-          this.applyQuery(this.currentQuery);
+        // Log the results for debugging
+        if (result.updated > 0) {
+          console.log('🔄 Updated existing records during pagination:', result.updated);
+        }
+        if (result.invalid.length > 0) {
+          console.warn('⚠️ Invalid records found during pagination:', result.invalid.length);
         }
         
-        this.currentPage++;
+        // Only increment page if we actually processed some data
+        if (result.added > 0 || result.updated > 0) {
+          this.currentPage++;
+        }
         
-        // Check if we have more data
+        // Check if we have more data (standard pagination logic)
         this.hasMoreData = newData.length === this.pageSize;
         
         console.log('✅ Page loaded successfully:', { 
           totalRecords: this.data.length, 
           currentPage: this.currentPage, 
-          hasMoreData: this.hasMoreData 
+          hasMoreData: this.hasMoreData,
+          addedRecords: result.added,
+          updatedRecords: result.updated,
+          invalidRecords: result.skipped
         });
-        
-        // Update the query engine with new data
-        this.queryEngine.setObjects(this.data);
-        
-        // Re-render to show new data
-        this.render();
       } else {
         // No more data available
         this.hasMoreData = false;
@@ -1870,6 +2020,10 @@ class DivTable {
     } finally {
       this.isLoading = false;
       this.hideLoadingIndicator();
+      // Remove loading placeholders whether success or error
+      this.hideLoadingPlaceholders();
+      // Stop progress bar animation
+      this.stopProgressBarAnimation();
     }
   }
 
@@ -1920,6 +2074,111 @@ class DivTable {
     if (indicator) {
       indicator.style.display = 'none';
     }
+  }
+
+  showLoadingPlaceholders() {
+    // Remove any existing placeholders first
+    this.hideLoadingPlaceholders();
+    
+    // Create placeholder rows for the expected page size
+    const placeholdersToShow = Math.min(this.pageSize, 5); // Show max 5 placeholder rows to avoid overwhelming UI
+    
+    for (let i = 0; i < placeholdersToShow; i++) {
+      const placeholderRow = this.createLoadingPlaceholderRow();
+      this.bodyContainer.appendChild(placeholderRow);
+    }
+  }
+
+  hideLoadingPlaceholders() {
+    const placeholders = this.bodyContainer.querySelectorAll('.div-table-row.loading-placeholder');
+    placeholders.forEach(placeholder => placeholder.remove());
+  }
+
+  createLoadingPlaceholderRow() {
+    const row = document.createElement('div');
+    row.className = 'div-table-row loading-placeholder';
+    
+    const orderedColumns = this.getOrderedColumns();
+    
+    // Use the same grid template as regular rows
+    let gridTemplate = '';
+    if (this.showCheckboxes) {
+      gridTemplate = '40px '; // Checkbox column
+    }
+    
+    // Add column templates
+    orderedColumns.forEach(col => {
+      // If this is the grouped column, make it narrower since values are empty
+      if (this.groupByField && col.field === this.groupByField) {
+        gridTemplate += '100px '; // Fixed narrow width for grouped column
+        return;
+      }
+      
+      const responsive = col.responsive || {};
+      switch (responsive.size) {
+        case 'fixed-narrow':
+          gridTemplate += '80px ';
+          break;
+        case 'fixed-medium':
+          gridTemplate += '120px ';
+          break;
+        case 'flexible-small':
+          gridTemplate += '1fr ';
+          break;
+        case 'flexible-medium':
+          gridTemplate += '2fr ';
+          break;
+        case 'flexible-large':
+          gridTemplate += '3fr ';
+          break;
+        default:
+          gridTemplate += '1fr ';
+      }
+    });
+    
+    row.style.gridTemplateColumns = gridTemplate.trim();
+
+    // Checkbox column placeholder
+    if (this.showCheckboxes) {
+      const checkboxCell = document.createElement('div');
+      checkboxCell.className = 'div-table-cell checkbox-column loading-cell';
+      row.appendChild(checkboxCell);
+    }
+
+    // Column placeholders
+    orderedColumns.forEach(col => {
+      const cell = document.createElement('div');
+      cell.className = 'div-table-cell loading-cell';
+      
+      // Create shimmer placeholder content
+      const shimmerContent = document.createElement('div');
+      shimmerContent.className = 'loading-shimmer-content';
+      
+      // Vary the width of placeholder content to look more realistic
+      const widthPercentage = 60 + Math.random() * 30; // Between 60% and 90%
+      shimmerContent.style.width = `${widthPercentage}%`;
+      
+      cell.appendChild(shimmerContent);
+      row.appendChild(cell);
+    });
+
+    return row;
+  }
+
+  startProgressBarAnimation() {
+    // Find all progress bars and add loading class for animation
+    const progressBars = this.infoSection.querySelectorAll('.loading-progress-bar');
+    progressBars.forEach(bar => {
+      bar.classList.add('loading');
+    });
+  }
+
+  stopProgressBarAnimation() {
+    // Find all progress bars and remove loading class to stop animation
+    const progressBars = this.infoSection.querySelectorAll('.loading-progress-bar');
+    progressBars.forEach(bar => {
+      bar.classList.remove('loading');
+    });
   }
 
   // Public API for virtual scrolling configuration
@@ -2005,33 +2264,118 @@ class DivTable {
   }
 
   appendData(newData) {
-    if (newData && Array.isArray(newData)) {
-      this.data.push(...newData);
+    if (!newData || !Array.isArray(newData)) {
+      console.warn('appendData requires a valid array');
+      return { added: 0, updated: 0, skipped: 0, invalid: [] };
+    }
+    
+    const invalid = [];
+    let addedCount = 0;
+    let updatedCount = 0;
+    
+    // Process each record with upsert behavior
+    for (const record of newData) {
+      if (!record || typeof record !== 'object') {
+        invalid.push(record);
+        console.warn('appendData: Skipping invalid record', record);
+        continue;
+      }
+      
+      // Ensure the record has a primary key
+      if (!record[this.primaryKeyField]) {
+        invalid.push(record);
+        console.warn(`appendData: Skipping record without ${this.primaryKeyField}`, record);
+        continue;
+      }
+      
+      // Check for existing record with same primary key (upsert behavior)
+      const recordId = String(record[this.primaryKeyField]);
+      const existingIndex = this.data.findIndex(item => 
+        String(item[this.primaryKeyField]) === recordId
+      );
+      
+      if (existingIndex >= 0) {
+        // Update existing record
+        this.data[existingIndex] = { ...record };
+        updatedCount++;
+      } else {
+        // Add new record
+        this.data.push(record);
+        addedCount++;
+      }
+    }
+    
+    if (addedCount > 0 || updatedCount > 0) {
+      // Update the query engine with new/updated data
+      this.queryEngine.setObjects(this.data);
+      
+      // Update query editor if field values changed (for completion suggestions)
+      this.updateQueryEditorIfNeeded();
       
       // Update filtered data if no active query
       if (!this.currentQuery.trim()) {
-        this.filteredData.push(...newData);
+        this.filteredData = [...this.data];
       } else {
-        // Re-apply query to include new data
+        // Re-apply query to include new/updated data
         this.applyQuery(this.currentQuery);
       }
       
-      // Update the query engine with new data
-      this.queryEngine.setObjects(this.data);
+      // Update info section and re-render
+      this.updateInfoSection();
+      this.render();
     }
+    
+    return { 
+      added: addedCount, 
+      updated: updatedCount, 
+      skipped: invalid.length, 
+      invalid 
+    };
   }
 
   replaceData(newData) {
     if (!newData || !Array.isArray(newData)) {
       console.warn('replaceData requires a valid array');
-      return;
+      return { success: false, message: 'Invalid data provided' };
     }
 
-    // Replace the entire data array
-    this.data = [...newData];
+    // Validate data integrity and check for duplicates within the new data
+    const duplicates = [];
+    const seenIds = new Set();
+    const validRecords = [];
+    
+    for (const record of newData) {
+      if (!record || typeof record !== 'object') {
+        console.warn('replaceData: Skipping invalid record', record);
+        continue;
+      }
+      
+      // Ensure the record has a primary key
+      if (!record[this.primaryKeyField]) {
+        console.warn(`replaceData: Skipping record without ${this.primaryKeyField}`, record);
+        continue;
+      }
+      
+      // Check for duplicate primary key within the new data
+      const recordId = String(record[this.primaryKeyField]);
+      if (seenIds.has(recordId)) {
+        duplicates.push(recordId);
+        console.warn(`replaceData: Skipping duplicate ${this.primaryKeyField} '${recordId}' within new data`);
+        continue;
+      }
+      
+      seenIds.add(recordId);
+      validRecords.push(record);
+    }
+
+    // Replace the entire data array with validated data
+    this.data = validRecords;
     
     // Update the query engine with new data
     this.queryEngine.setObjects(this.data);
+    
+    // Update query editor if field values changed (for completion suggestions)
+    this.updateQueryEditorIfNeeded();
     
     // Keep the current query and re-apply it to filter the new data
     if (this.currentQuery && this.currentQuery.trim()) {
@@ -2059,6 +2403,14 @@ class DivTable {
     // Update info display and re-render
     this.updateInfoSection();
     this.render();
+    
+    return { 
+      success: true, 
+      totalProvided: newData.length,
+      validRecords: validRecords.length, 
+      skipped: newData.length - validRecords.length, 
+      duplicates 
+    };
   }
 }
 

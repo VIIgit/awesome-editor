@@ -69,7 +69,7 @@
     // Function to update details panel
     function updateDetailsPanel(detailsId, row, group) {
       const detailsContent = document.querySelector(`#${detailsId} .details-content`);
-      
+
       if (group) {
         detailsContent.className = 'details-content';
         detailsContent.innerHTML = `
@@ -96,7 +96,7 @@
               <span class="detail-value">${value}</span>
             </div>
           `).join('');
-        
+
         detailsContent.innerHTML = items || '<div class="detail-item">No data available</div>';
       } else {
         detailsContent.className = 'details-content empty';
@@ -105,29 +105,34 @@
     }
 
     const data = [
-      { id: 1, name: 'John Doe', age: 30, city: 'New York', active: true },
-      { id: 2, name: 'Jane Smith', age: 25, city: 'Los Angeles', active: false },
-      { id: 3, name: 'Bob Johnson', age: 35, city: 'Chicago', active: true },
-      { id: 4, name: 'Alice Brown', age: 28, city: 'New York', active: false },
-      { id: 5, name: 'Charlie Wilson', age: 32, city: 'Los Angeles', active: true },
-      { id: 6, name: 'Eva Martinez', age: 27, city: 'Chicago', active: true },
-      { id: 7, name: 'David Lee', age: 40, city: 'New York', active: false },
-      { id: 8, name: 'Grace Taylor', age: 22, city: 'Los Angeles', active: true },
-      { id: 9, name: 'Grace Taylor9', age: 2, city: 'Los Angeles', active: true },
-      { id: 10, name: 'Grace Taylor10', city: 'Los Angeles', active: true },
-      { id: 11, name: 'Grace11 Taylor', age: 22, city: 'Los Angeles', active: true },
-      { id: 12, name: 'no age, city, active' },
-      { id: 13, name: 'Grace Taylor13', age: 22, city: 'Los Angeles', active: true }
+      { id: 1, name: 'John Doe', age: 30, city: 'New York', active: true, technical: 1001 },
+      { id: 2, name: 'Jane Smith', age: 25, city: 'Los Angeles', active: false, technical: 1002 },
+      { id: 3, name: 'Bob Johnson', age: 35, city: 'Chicago', active: true, technical: 1003 },
+      { id: 4, name: 'Alice Brown', age: 28, city: 'New York', active: false, technical: 1004 },
+      { id: 5, name: 'Charlie Wilson', age: 32, city: 'Los Angeles', active: true, technical: 1005 },
+      { id: 6, name: 'Eva Martinez', age: 27, city: 'Chicago', active: true, technical: 1006 },
+      { id: 7, name: 'David Lee', age: 40, city: 'New York', active: false, technical: 1007 },
+      { id: 8, name: 'Grace Taylor', age: 22, city: 'Los Angeles', active: true, technical: 1008 },
+      { id: 9, name: 'Grace Taylor9', age: 2, city: 'Los Angeles', active: true, technical: 1009 },
+      { id: 10, name: 'Grace Taylor10', city: 'Los Angeles', active: true, technical: 1010 },
+      { id: 11, name: 'Grace11 Taylor', age: 22, city: 'Los Angeles', active: true, technical: 1011 },
+      { id: 12, name: 'no age, city, active', technical: 1012 },
+      { id: 13, name: 'Grace Taylor13', age: 22, city: 'Los Angeles', active: true, technical: 1013 }
     ];
 
     // Column definitions with responsive metadata
     const columns = [
       {
+        field: 'technical',
+        label: 'Technical ID',
+        hidden: true,
+        primaryKey: true
+      },
+      {
         field: 'id',
         label: 'ID',
         responsive: { priority: 'low', size: 'fixed-narrow', hideMobile: true },
-        groupable: false,
-        primaryKey: true
+        groupable: false
       },
       {
         field: 'name',
@@ -162,16 +167,18 @@
       }
     ];
 
-    // Monaco Editor laden und dann DivTable starten
+    // Monaco Editor laden und dann ALL DivTables starten
     require.config({
       paths: {
         vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs"
       }
     });
 
-    require(["vs/editor/editor.main"], function (monaco) {
+    require(["vs/editor/editor.main"], function () {
+      // Initialize ALL tables within the same Monaco require block
       const divTable1 = document.getElementById('divtable1');
       const divTable2 = document.getElementById('divtable2');
+      const divTable3 = document.getElementById('divtable3');
 
       // First DivTable instance with checkboxes
       const divTableWithCheckboxes = new DivTable(monaco, {
@@ -182,6 +189,7 @@
         multiSelect: true,
         onSelectionChange: (rows) => {
           console.log("📋 Table 1 (with checkboxes) - Selected rows:", rows.map(r => r?.name || 'No name').filter(Boolean));
+          console.log("🔍 Hidden technical IDs of selected rows:", rows.map(r => r?.technical).filter(Boolean));
         },
         onRowFocus: (row, group) => {
           if (group) {
@@ -217,9 +225,6 @@
 
       divTableWithoutCheckboxes.group('city');
 
-      // Virtual Scrolling Demo - Third DivTable instance with virtual scrolling
-      const divTable3 = document.getElementById('divtable3');
-      
       // Function to simulate loading data from server
       function simulateDataFetch(page, pageSize) {
         return new Promise((resolve) => {
@@ -227,13 +232,13 @@
           setTimeout(() => {
             const startId = page * pageSize + 1;
             const newData = [];
-            
+
             // Generate realistic data for demonstration
             const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose'];
             const departments = ['Engineering', 'Marketing', 'Sales', 'Support', 'Finance', 'HR', 'Operations'];
             const firstNames = ['John', 'Jane', 'Bob', 'Alice', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry'];
             const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
-            
+
             for (let i = 0; i < pageSize; i++) {
               const id = startId + i;
               const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
@@ -242,17 +247,18 @@
               const department = departments[Math.floor(Math.random() * departments.length)];
               const age = Math.floor(Math.random() * 40) + 22; // Age between 22-62
               const active = Math.random() > 0.3; // 70% chance of being active
-              
+
               newData.push({
                 id: id,
                 name: `${firstName} ${lastName}`,
                 age: age,
                 city: city,
                 department: department,
-                active: active
+                active: active,
+                technical: 5000 + id // Hidden technical ID starting from 5001
               });
             }
-            
+
             // Stop generating data after 1000 records for demo
             // Page 0: IDs 1-100, Page 1: IDs 101-200, Page 2: IDs 201-300, etc.
             // Page 9: IDs 901-1000, Page 10: startId = 1001 should return empty
@@ -261,10 +267,10 @@
             } else {
               resolve(newData);
             }
-          }, 300 + Math.random() * 500); // Simulate 300-800ms network delay
+          }, 600 + Math.random() * 700); // Simulate 600-1300ms network delay
         });
       }
-      
+
       // Initialize virtual scrolling table with first 100 records
       simulateDataFetch(0, 100).then(initialData => {
         const virtualScrollingTable = new DivTable(monaco, {
@@ -272,11 +278,16 @@
           data: initialData,
           columns: [
             {
+              field: 'technical',
+              label: 'Technical ID',
+              hidden: true,
+              primaryKey: true
+            },
+            {
               field: 'id',
               label: 'ID',
               responsive: { priority: 'low', size: 'fixed-narrow', hideMobile: true },
-              groupable: false,
-              primaryKey: true
+              groupable: false
             },
             {
               field: 'name',
@@ -318,23 +329,23 @@
           ],
           showCheckboxes: true,
           multiSelect: true,
-          
+
           // Virtual scrolling configuration
           virtualScrolling: true,
           pageSize: 100,
           totalRecords: 1000, // Total records available on server
           loadingThreshold: 20, // Load next page when within 20 records of the end (80% of page size)
-          
+
           // Callbacks
           onNextPage: async (page, pageSize) => {
             console.log(`📄 Loading page ${page} (${pageSize} records per page)`);
             return await simulateDataFetch(page, pageSize);
           },
-          
+
           onSelectionChange: (rows) => {
             console.log("📋 Virtual Table - Selected rows:", rows.map(r => r?.name || 'No name').filter(Boolean));
           },
-          
+
           onRowFocus: (row, group) => {
             if (group) {
               updateDetailsPanel('details3', null, group);
@@ -345,7 +356,7 @@
             }
           }
         });
-        
+
         // Optional: Group by department to demonstrate virtual scrolling with grouping
         setTimeout(() => {
           virtualScrollingTable.group('department');
@@ -362,9 +373,29 @@
       // 3. Group (already applied above)
       //divTableWithCheckboxes.group('city');
 
-      // 4. Add new row
-      //divTableWithCheckboxes.addRecord({ id: 14, name: 'Eva', age: 22, city: 'Hamburg', active: false });
+      // 4. Add new row with hidden primary key
+      setTimeout(() => {
+        divTableWithCheckboxes.addRecord({
+          technical: 2001, // Hidden primary key
+          id: 14,
+          name: 'Eva Hidden ✅ Added record',
+          age: 22,
+          city: 'Hamburg',
+          active: false
+        });
+      }, 3000);
 
+      setTimeout(() => {
+        divTableWithCheckboxes.addRecord({
+          technical: 1012, // Hidden primary key
+          id: 12,
+          name: 'Eva Adam ✅ updated record',
+          age: 22,
+          city: 'Hamburg',
+          active: false
+        });
+        console.log('✅ Added record with hidden primary key: technical=2001');
+      }, 3000);
     });
   </script>
 </body>
