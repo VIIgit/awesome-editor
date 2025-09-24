@@ -1979,8 +1979,14 @@ class DivTable {
           console.log(`📈 Page recalculated: ${oldPage} → ${this.currentPage} (dataCount: ${newDataCount})`);
         }
         
-        // Check if we have more data (standard pagination logic)
-        this.hasMoreData = newData.length === this.pageSize;
+        // Check if we have more data - improved logic to determine if current page is the last page
+        if (this.totalRecords && this.totalRecords > 0) {
+          // If we know the total number of records, check if we've loaded them all
+          this.hasMoreData = this.data.length < this.totalRecords;
+        } else {
+          // Fallback to standard pagination logic: if we got less data than requested page size, we're at the end
+          this.hasMoreData = newData.length === this.pageSize;
+        }
         
         console.log('✅ Page loaded successfully:', { 
           totalRecords: this.data.length, 
