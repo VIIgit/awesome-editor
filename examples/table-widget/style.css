@@ -465,6 +465,24 @@
   opacity: 1;
 }
 
+/* Group indicator styling */
+.group-indicator {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.group-indicator:hover {
+  opacity: 1;
+}
+
+/* When column is grouped, make indicator full opacity (black like title) */
+.group-indicator.grouped {
+  opacity: 1;
+  color: inherit;
+}
+
 /* Checkbox column */
 .div-table-cell.checkbox-column,
 .div-table-header-cell.checkbox-column {

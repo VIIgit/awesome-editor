@@ -72,9 +72,6 @@ class DivTable {
     // Set up query editor
     this.setupQueryEditor();
     
-    // Set up group by dropdown
-    this.setupGroupByDropdown();
-    
     // Initial render
     this.render();
     
@@ -150,21 +147,6 @@ class DivTable {
       this.toolbar.appendChild(queryContainer);
     }
 
-    // Create group by select if it doesn't exist
-    let groupBySelect = this.toolbar.querySelector('.group-by');
-    if (!groupBySelect) {
-      groupBySelect = document.createElement('select');
-      groupBySelect.className = 'group-by';
-      groupBySelect.setAttribute('tabindex', '0');
-      
-      // Add default option
-      const defaultOption = document.createElement('option');
-      defaultOption.value = '';
-      defaultOption.textContent = 'Group by...';
-      groupBySelect.appendChild(defaultOption);
-      
-      this.toolbar.appendChild(groupBySelect);
-    }
 
     // Create info section if it doesn't exist
     let infoSection = this.toolbar.querySelector('.info-section');
@@ -284,28 +266,6 @@ class DivTable {
     this.queryEditor.model.onDidChangeContent(() => {
       if (errorTimeout) clearTimeout(errorTimeout);
       errorTimeout = setTimeout(() => this.handleQueryChange(), 350);
-    });
-  }
-
-  setupGroupByDropdown() {
-    const groupBySelect = this.toolbar.querySelector('.group-by');
-    if (!groupBySelect) return;
-
-    // Clear existing options
-    groupBySelect.innerHTML = '<option value="">Group by...</option>';
-
-    // Add groupable columns (excluding hidden ones)
-    this.columns.forEach(col => {
-      if (col.groupable !== false && !col.hidden) {
-        const option = document.createElement('option');
-        option.value = col.field;
-        option.textContent = col.label || col.field;
-        groupBySelect.appendChild(option);
-      }
-    });
-
-    groupBySelect.addEventListener('change', (e) => {
-      this.group(e.target.value);
     });
   }
 
@@ -942,12 +902,6 @@ class DivTable {
     
     // Add column templates
     orderedColumns.forEach(col => {
-      // If this is the grouped column, make it narrower since values are empty
-      if (this.groupByField && col.field === this.groupByField) {
-        gridTemplate += '100px '; // Fixed narrow width for grouped column
-        return;
-      }
-      
       const responsive = col.responsive || {};
       switch (responsive.size) {
         case 'fixed-narrow':
@@ -999,14 +953,48 @@ class DivTable {
     orderedColumns.forEach(col => {
       const headerCell = document.createElement('div');
       headerCell.className = 'div-table-header-cell sortable';
-      headerCell.textContent = col.label || col.field;
+      
+      // Create header content with label and indicators
+      const headerContent = document.createElement('span');
+      headerContent.textContent = col.label || col.field;
+      headerCell.appendChild(headerContent);
+      
+      // Add groupable indicator if column is groupable
+      if (col.groupable !== false && !col.hidden) {
+        const groupIndicator = document.createElement('span');
+        groupIndicator.className = 'group-indicator';
+        if (this.groupByField === col.field) {
+          groupIndicator.classList.add('grouped');
+        }
+        groupIndicator.textContent = this.groupByField === col.field ? '☴' : '☷';
+        groupIndicator.style.cursor = 'pointer';
+        const columnTitle = col.label || col.field;
+        groupIndicator.title = this.groupByField === col.field ? `Grouped by ${columnTitle} (click to ungroup)` : `Click to group by ${columnTitle}`;
+        
+        // Add click handler for grouping
+        groupIndicator.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent triggering sort
+          if (this.groupByField === col.field) {
+            // If already grouped by this column, remove grouping
+            this.group('');
+          } else {
+            // Group by this column
+            this.group(col.field);
+          }
+        });
+        
+        headerCell.appendChild(groupIndicator);
+      }
       
       if (this.sortColumn === col.field) {
         headerCell.classList.add('sorted', this.sortDirection);
       }
 
-      headerCell.addEventListener('click', () => {
-        this.sort(col.field);
+      headerCell.addEventListener('click', (e) => {
+        // Only sort if not clicking on group indicator
+        if (!e.target.classList.contains('group-indicator')) {
+          this.sort(col.field);
+        }
       });
 
       this.headerContainer.appendChild(headerCell);
@@ -1104,12 +1092,6 @@ class DivTable {
     
     // Add column templates
     orderedColumns.forEach(col => {
-      // If this is the grouped column, make it narrower since values are empty
-      if (this.groupByField && col.field === this.groupByField) {
-        gridTemplate += '100px '; // Fixed narrow width for grouped column
-        return;
-      }
-      
       const responsive = col.responsive || {};
       switch (responsive.size) {
         case 'fixed-narrow':
@@ -1285,12 +1267,6 @@ class DivTable {
     
     // Add column templates
     orderedColumns.forEach(col => {
-      // If this is the grouped column, make it narrower since values are empty
-      if (this.groupByField && col.field === this.groupByField) {
-        gridTemplate += '100px '; // Fixed narrow width for grouped column
-        return;
-      }
-      
       const responsive = col.responsive || {};
       switch (responsive.size) {
         case 'fixed-narrow':
@@ -1710,12 +1686,6 @@ class DivTable {
     
     this.groupByField = field || null;
     
-    // Update the group-by dropdown to reflect the programmatic change
-    const groupBySelect = this.toolbar.querySelector('.group-by');
-    if (groupBySelect) {
-      groupBySelect.value = field || '';
-    }
-    
     if (field) {
       // When grouping is enabled, start with all groups collapsed
       this.collapsedGroups.clear();
@@ -1970,10 +1940,17 @@ class DivTable {
     this.startProgressBarAnimation();
     
     try {
-      // Call the pagination callback
-      const newData = await this.onNextPage(this.currentPage + 1, this.pageSize);
+      // Recalculate current page based on current data count
+      // If current count <= pageSize, then we're on page 0
+      const currentDataCount = this.data.length;
+      this.currentPage = currentDataCount <= this.pageSize ? 0 : Math.floor((currentDataCount - 1) / this.pageSize);
       
-      console.log('📦 Received new data:', { newRecords: newData?.length || 0, page: this.currentPage + 1 });
+      // Call the pagination callback - note: currentPage is zero-indexed, so currentPage+1 is the next page to load
+      const nextPageToLoad = this.currentPage + 1;
+      console.log(`📄 Requesting page ${nextPageToLoad} (recalculated currentPage: ${this.currentPage}, dataCount: ${currentDataCount})`);
+      const newData = await this.onNextPage(nextPageToLoad, this.pageSize);
+      
+      console.log('📦 Received new data:', { newRecords: newData?.length || 0, requestedPage: nextPageToLoad });
       
       if (newData && Array.isArray(newData) && newData.length > 0) {
         // Use appendData for all the heavy lifting - it handles:
@@ -1995,7 +1972,11 @@ class DivTable {
         
         // Only increment page if we actually processed some data
         if (result.added > 0 || result.updated > 0) {
-          this.currentPage++;
+          const oldPage = this.currentPage;
+          // Recalculate current page based on new data count
+          const newDataCount = this.data.length;
+          this.currentPage = newDataCount <= this.pageSize ? 0 : Math.floor((newDataCount - 1) / this.pageSize);
+          console.log(`📈 Page recalculated: ${oldPage} → ${this.currentPage} (dataCount: ${newDataCount})`);
         }
         
         // Check if we have more data (standard pagination logic)
@@ -2393,11 +2374,11 @@ class DivTable {
       displayStartIndex: 0,
       displayEndIndex: Math.min(this.pageSize, this.data.length),
       isLoading: false,
-      loadedPages: new Set([1])
+      //loadedPages: new Set([0]) // First page is page 0
     };
     
-    // Reset pagination to first page
-    this.currentPage = 1;
+    // Reset pagination to first page (zero-indexed)
+    this.currentPage = 0;
     this.startId = 1;
     
     // Update info display and re-render
