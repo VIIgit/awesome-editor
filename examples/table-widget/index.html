@@ -188,7 +188,6 @@
         showCheckboxes: true,
         multiSelect: true,
         onSelectionChange: (rows) => {
-          console.log("📋 Table 1 (with checkboxes) - Selected rows:", rows.map(r => r?.name || 'No name').filter(Boolean));
           console.log("🔍 Hidden technical IDs of selected rows:", rows.map(r => r?.technical).filter(Boolean));
         },
         onRowFocus: (row, group) => {
@@ -268,7 +267,7 @@
             } else {
               resolve(newData);
             }
-          }, 600 + Math.random() * 700); // Simulate 600-1300ms network delay
+          }, 1600 + Math.random() * 700); // Simulate 600-1300ms network delay
         });
       }
 

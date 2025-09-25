@@ -431,7 +431,9 @@ class DivTable {
             label: groupColumn?.label || this.groupByField,
             itemCount: group.items.length
           };
-          this.onRowFocus(undefined, groupInfo);
+          if (typeof this.onRowFocus === 'function') {
+            this.onRowFocus(undefined, groupInfo);
+          }
         }
       }
     } else if (row.dataset.id) {
@@ -443,7 +445,9 @@ class DivTable {
         this._lastFocusCallback = { rowId: row.dataset.id, groupKey: null };
         
         const rowData = this.findRowData(row.dataset.id);
-        this.onRowFocus(rowData, undefined);
+        if (typeof this.onRowFocus === 'function') {
+          this.onRowFocus(rowData, undefined);
+        }
       }
     }
   }
@@ -689,7 +693,9 @@ class DivTable {
     this.updateInfoSection();
     
     // Trigger selection change callback
-    this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+    if (typeof this.onSelectionChange === 'function') {
+      this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+    }
   }
 
   toggleIndividualRowSelection(row) {
@@ -729,7 +735,9 @@ class DivTable {
       .map(id => this.findRowData(id))
       .filter(Boolean);
     
-    this.onSelectionChange(selectedData);
+    if (typeof this.onSelectionChange === 'function') {
+      this.onSelectionChange(selectedData);
+    }
   }
 
   toggleRowSelection(index) {
@@ -758,7 +766,9 @@ class DivTable {
     }
 
     this.updateCheckboxes();
-    this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+    if (typeof this.onSelectionChange === 'function') {
+      this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+    }
   }
 
   clearSelection() {
@@ -1164,7 +1174,9 @@ class DivTable {
           .map(id => this.findRowData(id))
           .filter(Boolean);
         
-        this.onSelectionChange(selectedData);
+        if (typeof this.onSelectionChange === 'function') {
+          this.onSelectionChange(selectedData);
+        }
       });
       
       // Sync checkbox focus with row focus
@@ -1339,7 +1351,9 @@ class DivTable {
         this.updateInfoSection();
         
         // Trigger selection change callback
-        this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+        if (typeof this.onSelectionChange === 'function') {
+          this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+        }
       });
       
       // Add focus handler for group header checkbox
@@ -1502,7 +1516,9 @@ class DivTable {
     });
     this.updateSelectionStates();
     this.updateInfoSection();
-    this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+    if (typeof this.onSelectionChange === 'function') {
+      this.onSelectionChange(Array.from(this.selectedRows).map(id => this.findRowData(id)).filter(Boolean));
+    }
   }
 
   updateInfoSection() {
@@ -1625,6 +1641,67 @@ class DivTable {
       progressLine.appendChild(progressContainer);
       this.infoSection.appendChild(progressLine);
     }
+  }
+
+  updateInfoSectionWithAnticipatedProgress() {
+    if (!this.infoSection || !this.virtualScrolling) return;
+    
+    const total = this.totalRecords;
+    const currentLoaded = this.data.length;
+    const filtered = this.filteredData.length;
+    const selected = this.selectedRows.size;
+    
+    // Calculate anticipated progress (assume we'll get a full page of data)
+    const anticipatedLoaded = Math.min(currentLoaded + this.pageSize, total);
+    
+    // Clear existing content
+    this.infoSection.innerHTML = '';
+    
+    // First line: Selection info (only show when there are selections)
+    if (selected > 0) {
+      const selectionLine = document.createElement('div');
+      selectionLine.className = 'info-line';
+      
+      const selectionInfo = document.createElement('span');
+      selectionInfo.className = 'info-selection';
+      selectionInfo.textContent = `${selected} selected`;
+      
+      selectionLine.appendChild(selectionInfo);
+      this.infoSection.appendChild(selectionLine);
+    }
+    
+    // Second line: Stats with anticipated progress - smaller font
+    const statsLine = document.createElement('div');
+    statsLine.className = 'info-line secondary';
+    
+    const statsInfo = document.createElement('span');
+    statsInfo.className = 'info-stats';
+    
+    let statsText = '';
+    if (filtered < currentLoaded) {
+      // Has filtering applied - show anticipated with current filter count
+      if (anticipatedLoaded < total) {
+        const loadPercentage = Math.round((anticipatedLoaded / total) * 100);
+        statsText = `${filtered} filtered (${loadPercentage}% of ${total} total)`;
+      } else {
+        statsText = `${filtered} filtered (${total} total)`;
+      }
+    } else {
+      // No filtering - show anticipated progress
+      if (anticipatedLoaded < total) {
+        const percentage = Math.round((anticipatedLoaded / total) * 100);
+        statsText = `${percentage}% of ${total} total`;
+      } else {
+        statsText = `${total} total`;
+      }
+    }
+    
+    statsInfo.textContent = statsText;
+    statsLine.appendChild(statsInfo);
+    this.infoSection.appendChild(statsLine);
+    
+    // Third line: Visual progress bar with anticipated progress using existing createProgressBar
+    this.createProgressBar(anticipatedLoaded, total, filtered);
   }
 
   // Public API methods
@@ -1931,10 +2008,12 @@ class DivTable {
     console.log('🔄 Loading next page...', { currentPage: this.currentPage, dataLength: this.data.length });
     
     this.isLoading = true;
-    this.showLoadingIndicator();
     
     // Show loading placeholder rows for the next page
     this.showLoadingPlaceholders();
+    
+    // Immediately update info section with anticipated progress
+    this.updateInfoSectionWithAnticipatedProgress();
     
     // Start progress bar animation
     this.startProgressBarAnimation();
@@ -2006,32 +2085,10 @@ class DivTable {
       this.showErrorIndicator();
     } finally {
       this.isLoading = false;
-      this.hideLoadingIndicator();
       // Remove loading placeholders whether success or error
       this.hideLoadingPlaceholders();
       // Stop progress bar animation
       this.stopProgressBarAnimation();
-    }
-  }
-
-  showLoadingIndicator() {
-    let indicator = this.bodyContainer.querySelector('.loading-indicator');
-    if (!indicator) {
-      indicator = document.createElement('div');
-      indicator.className = 'loading-indicator';
-      indicator.innerHTML = `
-        <div class="loading-spinner"></div>
-        <span>Loading more records...</span>
-      `;
-      this.bodyContainer.appendChild(indicator);
-    }
-    indicator.style.display = 'flex';
-  }
-
-  hideLoadingIndicator() {
-    const indicator = this.bodyContainer.querySelector('.loading-indicator');
-    if (indicator) {
-      indicator.style.display = 'none';
     }
   }
 
@@ -2068,8 +2125,8 @@ class DivTable {
     this.hideLoadingPlaceholders();
     
     // Create placeholder rows for the expected page size
-    const placeholdersToShow = Math.min(this.pageSize, 5); // Show max 5 placeholder rows to avoid overwhelming UI
-    
+    const placeholdersToShow = 3; // Show max 3 placeholder rows to avoid overwhelming UI
+
     for (let i = 0; i < placeholdersToShow; i++) {
       const placeholderRow = this.createLoadingPlaceholderRow();
       this.bodyContainer.appendChild(placeholderRow);
@@ -2245,7 +2302,6 @@ class DivTable {
     this.hasMoreData = true;
     this.data = this.data.slice(0, this.pageSize); // Keep only first page
     this.filteredData = [...this.data];
-    this.hideLoadingIndicator();
     this.hideErrorIndicator();
     this.render();
   }

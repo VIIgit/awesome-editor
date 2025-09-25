@@ -294,7 +294,7 @@
 
 .loading-progress-bar {
   height: 100%;
-  background: #007bff;
+  background: #495057;
   border-radius: 2px;
   transition: width 0.3s ease;
   position: relative;
@@ -353,7 +353,7 @@
 }
 
 .loading-progress[data-state="loading"] .loading-progress-bar {
-  background: #007bff;
+  background: #495057;
 }
 
 @keyframes loading-shimmer {
@@ -776,7 +776,7 @@ h1 {
 }
 
 /* Virtual Scrolling Indicators */
-.loading-indicator, .error-indicator {
+.error-indicator {
   display: none;
   align-items: center;
   justify-content: center;
@@ -785,27 +785,9 @@ h1 {
   margin: 10px 0;
   border-radius: 3px;
   font-size: 14px;
-}
-
-.loading-indicator {
-  background: #f9f9f7;
-  border: 1px solid #e9ecef;
-  color: #6c757d;
-}
-
-.error-indicator {
   background: #fff5f5;
   border: 1px solid #fed7d7;
   color: #c53030;
-}
-
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #e9ecef;
-  border-top: 2px solid #6c757d;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
 }
 
 /* Loading Placeholder Rows */
@@ -832,11 +814,6 @@ h1 {
   background-size: 200% 100%;
   border-radius: 4px;
   animation: loading-shimmer 1.5s infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .retry-button {
