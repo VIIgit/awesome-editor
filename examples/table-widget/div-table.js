@@ -1021,7 +1021,7 @@ class DivTable {
       
       // Create header content with label and indicators
       const headerContent = document.createElement('span');
-      headerContent.textContent = col.label || col.field;
+      headerContent.innerHTML = col.label || col.field;
       headerCell.appendChild(headerContent);
       
       // Add groupable indicator if column is groupable
@@ -1073,7 +1073,7 @@ class DivTable {
     if (this.showLoadingPlaceholder && this.isLoadingState) {
       const loadingState = document.createElement('div');
       loadingState.className = 'div-table-loading';
-      loadingState.textContent = this.loadingPlaceholderText;
+      loadingState.innerHTML = this.loadingPlaceholderText;
       this.bodyContainer.appendChild(loadingState);
       return;
     }
@@ -1282,7 +1282,7 @@ class DivTable {
         if (typeof col.render === 'function') {
           cell.innerHTML = col.render(item[col.field], item);
         } else {
-          cell.textContent = item[col.field] ?? '';
+          cell.innerHTML = item[col.field] ?? '';
         }
       }
       

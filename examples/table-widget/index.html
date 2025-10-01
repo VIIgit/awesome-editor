@@ -149,7 +149,7 @@
       },
       {
         field: 'city',
-        label: 'City',
+        label: 'City<br>(with link)',
         render: (value) => value ? `<a href="https://www.example.com?city=${encodeURIComponent(value)}" target="_blank" rel="noopener noreferrer">${value}</a>` : '',
         responsive: { priority: 'medium', size: 'flexible-medium', allowWrap: true },
         groupable: true
