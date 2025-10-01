@@ -257,6 +257,13 @@
   gap: 0;
 }
 
+.info-line-container {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
 .info-line {
   display: flex;
   justify-content: flex-end;
@@ -266,6 +273,44 @@
 .info-line.secondary {
   font-size: 0.8em;
   color: #888;
+}
+
+/* Refresh button in info section */
+.refresh-button {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.refresh-button:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.refresh-button:active {
+  background-color: #e0e0e0;
+}
+
+.refresh-button.refreshing {
+  color: #007ACC;
+}
+
+.refresh-button.refreshing svg {
+  animation: spin 1s linear infinite;
+}
+
+.refresh-button svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
 }
 
 .info-selection {
@@ -497,6 +542,7 @@
   margin: 0;
   cursor: pointer;
   accent-color: #007bff;
+  width: 10px;
 }
 
 /* Three-state checkbox styling */
@@ -767,6 +813,33 @@ input[type="checkbox"]:indeterminate::after {
   min-height: 200px;
   color: #999;
   font-style: italic;
+}
+
+/* Loading placeholder state */
+.div-table-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #666;
+  font-style: italic;
+  position: relative;
+}
+
+.div-table-loading::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e3e3e3;
+  border-top: 2px solid #666;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Headings */

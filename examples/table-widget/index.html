@@ -336,6 +336,9 @@
           totalRecords: 1000, // Total records available on server
           loadingThreshold: 20, // Load next page when within 20 records of the end (80% of page size)
 
+          // Refresh functionality
+          showRefreshButton: true,
+
           // Callbacks
           onNextPage: async (page, pageSize) => {
             console.log(`📄 Loading page ${page} (${pageSize} records per page)`);

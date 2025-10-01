@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Spherical Controller Demo</title>
+    <link rel="stylesheet" href="isometric-3d.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .isometric-container {
+            height: 600px;
+            width: 1000px;
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            gap: 2px 2px;
+            grid-template-areas:
+                "cube-a . rect-a"
+                ". cube-b rect-b"
+                "cube-c cube-c .";
+            background-color: rgb(255, 0, 0);
+        }
+
+        .scene-a {
+            grid-area: cube-a;
+        }
+
+        .scene-b {
+            grid-area: cube-b;
+        }
+
+        .scene-c {
+            grid-area: cube-c;
+        }
+
+        .rect-a {
+            grid-area: rect-a;
+        }
+
+        .rect-b {
+            grid-area: rect-b;
+        }
+
+        .scene-a,
+        .scene-b,
+        .scene-c,
+        .rect-a,
+        .rect-b {
+            border: 3px solid white;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="modern-scene" class="isometric-container">
+        <div class="isometric-perspective grid-layout">
+            <div class="scene rect-a" data-focus="center">RECT A</div>
+            <div class="scene rect-b" data-z-axis="80" data-nav-xyz="00.15.15" data-nav-zoom="1.2">RECT B</div>
+
+            <div id="cube1" class="scene scene-a" data-width="100" data-height="100" data-depth="100" data-z-axis="80">
+                <div class="face front">front</div>
+                <div class="face back">back</div>
+                <div class="face left">left</div>
+                <div class="face right">right</div>
+                <div class="face top">top</div>
+                <div class="face bottom">bottom</div>
+            </div>
+            <div style="transform-style: preserve-3d;"> Cube 2
+                <div id="cube2" class="scene scene-b" data-width="20" data-height="360" data-depth="80"
+                    data-z-axis="10">
+                    <div class="face front">front</div>
+                    <div class="face back">back</div>
+                    <div class="face left">left</div>
+                    <div class="face right">right</div>
+                    <div class="face top" data-z-axis="180" data-nav-xyz="00.00.15" data-nav-zoom="0.8">top</div>
+                    <div class="face bottom">bottom</div>
+                </div>
+            </div>
+            <div id="cube3" class="scene scene-c" data-width="200" data-height="40" data-depth="80" data-z-axis="5" data-focus="center">
+                <div class="face front">front</div>
+                <div class="face back">back</div>
+                <div class="face left">left</div>
+                <div class="face right">right</div>
+                <div class="face top"  data-nav-xyz="15.00.-15" data-nav-zoom="1.1">top</div>
+                <div class="face bottom">bottom</div>
+            </div>
+        </div>
+
+        <div class="label-overlay">
+            <div class="label" data-cube="cube2" data-position="left" style="visibility: visible;">
+                Cube 2 Left
+            </div>
+            <div class="label" data-cube="cube2" data-position="right" style="visibility: visible;">
+                Cube 2 Right
+            </div>
+            <div class="label" data-cube="cube3" data-position="left" style="visibility: visible;">
+                Cube 3 Left
+            </div>
+            <div class="label" data-cube="cube3" data-position="top" style="visibility: visible;">
+                Cube 3 Top
+            </div>
+        </div>
+
+    </div>
+
+    <script src="isometric-3d.js"></script>
+    <script>
+        // Initialize with the new spherical controller
+        createIsometric3D('modern-scene', {
+            defaultRotation: { x: 45, y: 0, z: -35 },
+            defaultZoom: 1.0,
+            showCompactControls: true,
+            bookmarkPrefix: 'modern_',
+            rotationLimits: {
+                x: { min: 0, max: 180 },
+                y: { min: -180, max: 180 },
+                z: { min: -180, max: 180 }
+            }
+        });
+
+    </script>
+</body>
+
+</html>

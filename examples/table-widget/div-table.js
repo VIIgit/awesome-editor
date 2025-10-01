@@ -13,6 +13,15 @@ class DivTable {
     this.onSelectionChange = options.onSelectionChange || (() => {});
     this.onRowFocus = options.onRowFocus || (() => {});
     
+    // Loading placeholder options
+    this.showLoadingPlaceholder = options.showLoadingPlaceholder !== false;
+    this.loadingPlaceholderText = options.loadingPlaceholderText || 'loading';
+    this.isLoadingState = this.data.length === 0 && this.showLoadingPlaceholder; // Show loading when no initial data and enabled
+    
+    // Refresh button options
+    this.showRefreshButton = options.showRefreshButton || false;
+    this.onRefresh = options.onRefresh || (() => {});
+    
     // Virtual scrolling options
     this.virtualScrolling = options.virtualScrolling || false;
     this.pageSize = options.pageSize || 100;
@@ -211,7 +220,7 @@ class DivTable {
       this.queryEditor = createQueryEditor(this.monaco, queryContainer, {
         fieldNames,
         initialValue: this.currentQuery,
-        placeholder: 'Filter data... (e.g., age > 25 AND city = "New York")'
+        placeholder: this.generateDynamicPlaceholder(fieldNames)
       });
 
       // Clear any initial markers if the editor starts empty (like in smart-table)
@@ -267,6 +276,52 @@ class DivTable {
       if (errorTimeout) clearTimeout(errorTimeout);
       errorTimeout = setTimeout(() => this.handleQueryChange(), 350);
     });
+  }
+
+  generateDynamicPlaceholder(fieldNames) {
+    if (!fieldNames || Object.keys(fieldNames).length === 0) {
+      return 'Filter data... (e.g., column > value)';
+    }
+
+    const examples = [];
+    const fields = Object.keys(fieldNames);
+    
+    // Generate examples based on available field types
+    for (const field of fields.slice(0, 2)) { // Limit to first 3 fields to keep placeholder concise
+      const fieldInfo = fieldNames[field];
+      
+      if (fieldInfo.type === 'number') {
+        examples.push(`${field} > 100`);
+      } else if (fieldInfo.type === 'boolean') {
+        examples.push(`${field} = true`);
+      } else if (fieldInfo.type === 'string') {
+        if (fieldInfo.values && fieldInfo.values.length > 0) {
+          // Use actual values from the data, excluding NULL
+          const sampleValue = fieldInfo.values.find(v => v !== 'NULL') || fieldInfo.values[0];
+          if (sampleValue && sampleValue !== 'NULL') {
+            examples.push(`${field} = "${sampleValue}"`);
+          } else {
+            examples.push(`${field} LIKE "%text%"`);
+          }
+        } else {
+          examples.push(`${field} LIKE "%text%"`);
+        }
+      }
+    }
+
+    if (examples.length === 0) {
+      return 'Filter data... (e.g., column = value)';
+    }
+
+    // Create a natural-looking placeholder with 1-2 examples
+    const baseText = 'Filter data...';
+    if (examples.length === 1) {
+      return `${baseText} (e.g., ${examples[0]})`;
+    } else {
+      // Combine with AND for multiple examples
+      const firstTwo = examples.slice(0, 2);
+      return `${baseText} (e.g., ${firstTwo.join(' AND ')})`;
+    }
   }
 
   setupKeyboardNavigation() {
@@ -1014,6 +1069,15 @@ class DivTable {
   renderBody() {
     this.bodyContainer.innerHTML = '';
 
+    // Show loading placeholder if enabled and in loading state
+    if (this.showLoadingPlaceholder && this.isLoadingState) {
+      const loadingState = document.createElement('div');
+      loadingState.className = 'div-table-loading';
+      loadingState.textContent = this.loadingPlaceholderText;
+      this.bodyContainer.appendChild(loadingState);
+      return;
+    }
+
     if (this.filteredData.length === 0) {
       const emptyState = document.createElement('div');
       emptyState.className = 'div-table-empty';
@@ -1532,6 +1596,10 @@ class DivTable {
     // Clear existing content
     this.infoSection.innerHTML = '';
     
+    // Create container for first line with refresh button
+    const firstLineContainer = document.createElement('div');
+    firstLineContainer.className = 'info-line-container';
+    
     // First line: Selection info (only show when there are selections)
     if (selected > 0) {
       const selectionLine = document.createElement('div');
@@ -1542,7 +1610,18 @@ class DivTable {
       selectionInfo.textContent = `${selected} selected`;
       
       selectionLine.appendChild(selectionInfo);
-      this.infoSection.appendChild(selectionLine);
+      firstLineContainer.appendChild(selectionLine);
+    }
+    
+    // Add refresh button if enabled - always in the first line container
+    if (this.showRefreshButton) {
+      const refreshButton = this.createRefreshButton();
+      firstLineContainer.appendChild(refreshButton);
+    }
+    
+    // Only add the container if it has content
+    if (firstLineContainer.children.length > 0) {
+      this.infoSection.appendChild(firstLineContainer);
     }
     
     // Second line: Stats (always shown) - smaller font
@@ -1641,6 +1720,91 @@ class DivTable {
       progressLine.appendChild(progressContainer);
       this.infoSection.appendChild(progressLine);
     }
+  }
+
+  createRefreshButton() {
+    // Create refresh button container
+    const refreshButton = document.createElement('button');
+    refreshButton.className = 'refresh-button';
+    refreshButton.type = 'button';
+    refreshButton.title = 'Refresh data';
+    refreshButton.setAttribute('aria-label', 'Refresh table data');
+    
+    // Add refresh icon (using SVG for better compatibility)
+    refreshButton.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6"></path>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+      </svg>
+    `;
+    
+    // Add click handler
+    refreshButton.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Add visual feedback
+      refreshButton.classList.add('refreshing');
+      
+      try {
+        // If this is a virtual scrolling table, reset and load first page
+        if (this.virtualScrolling && typeof this.onNextPage === 'function') {
+          
+          // Reset to loading state
+          this.isLoadingState = true;
+          this.data = [];
+          this.filteredData = [];
+          this.selectedRows.clear();
+          this.currentQuery = '';
+          
+          // Reset pagination state
+          this.currentPage = 0;
+          this.isLoading = false;
+          this.hasMoreData = true;
+          
+          // Update Monaco editor if it exists
+          if (this.queryEditor?.editor) {
+            this.queryEditor.editor.setValue('');
+          }
+          
+          // Update the query engine with empty data
+          this.queryEngine.setObjects([]);
+          
+          // Re-render to show loading state
+          this.render();
+          
+          // Load first page
+          const firstPageData = await this.onNextPage(0, this.pageSize);
+          
+          if (firstPageData && Array.isArray(firstPageData) && firstPageData.length > 0) {
+            this.replaceData(firstPageData);
+          } else {
+            // No data received, clear loading state
+            this.isLoadingState = false;
+            this.render();
+          }
+        } else {
+          // For non-virtual scrolling tables, call the onRefresh callback if provided
+          if (typeof this.onRefresh === 'function') {
+            await Promise.resolve(this.onRefresh());
+          } else {
+            console.log('ℹ️ Refresh: No onRefresh callback provided for non-virtual scrolling table');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Refresh error:', error);
+        // Clear loading state on error
+        this.isLoadingState = false;
+        this.render();
+      } finally {
+        // Remove visual feedback after a minimum duration
+        setTimeout(() => {
+          refreshButton.classList.remove('refreshing');
+        }, 500);
+      }
+    });
+    
+    return refreshButton;
   }
 
   updateInfoSectionWithAnticipatedProgress() {
@@ -1811,6 +1975,9 @@ class DivTable {
       this.data.push(record);
       console.log(`addRecord: Added new record with ${this.primaryKeyField} '${recordId}'`);
     }
+    
+    // Clear loading state when record is added
+    this.isLoadingState = false;
     
     // Update the query engine with new/updated data
     this.queryEngine.setObjects(this.data);
@@ -2349,6 +2516,9 @@ class DivTable {
     }
     
     if (addedCount > 0 || updatedCount > 0) {
+      // Clear loading state when data is added
+      this.isLoadingState = false;
+      
       // Update the query engine with new/updated data
       this.queryEngine.setObjects(this.data);
       
@@ -2414,6 +2584,9 @@ class DivTable {
     // Replace the entire data array with validated data
     this.data = validRecords;
     
+    // Clear loading state when data is provided
+    this.isLoadingState = false;
+    
     // Update the query engine with new data
     this.queryEngine.setObjects(this.data);
     
@@ -2454,6 +2627,33 @@ class DivTable {
       skipped: newData.length - validRecords.length, 
       duplicates 
     };
+  }
+
+  // Loading placeholder management
+  resetToLoading() {
+    this.isLoadingState = true;
+    this.data = [];
+    this.filteredData = [];
+    this.selectedRows.clear();
+    this.currentQuery = '';
+    
+    // Update Monaco editor if it exists
+    if (this.queryEditor?.editor) {
+      this.queryEditor.editor.setValue('');
+    }
+    
+    // Update the query engine with empty data
+    this.queryEngine.setObjects([]);
+    
+    // Re-render to show loading placeholder
+    this.render();
+  }
+
+  setLoadingPlaceholderText(text) {
+    this.loadingPlaceholderText = text || 'loading';
+    if (this.isLoadingState) {
+      this.render(); // Re-render to show updated text
+    }
   }
 }
 
