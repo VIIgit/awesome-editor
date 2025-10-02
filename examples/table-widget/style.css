@@ -357,34 +357,68 @@
   animation: loading-shimmer 1.5s infinite;
 }
 
-/* Layered progress bars for filtered + loading state */
+/* Sequential loading progress segments */
+.progress-segment {
+  height: 100%;
+  border-radius: 2px;
+  position: absolute;
+  top: 0;
+  transition: width 0.3s ease, left 0.3s ease;
+}
+
+.loaded-segment {
+  background: #495057;
+  z-index: 2;
+}
+
+.loading-segment {
+  background: #6c757d;
+  z-index: 1;
+}
+
+.loading-segment::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  animation: loading-shimmer 1.5s infinite;
+}
+
+/* Different states for sequential progress bar */
+.loading-progress[data-state="sequential-loading"] {
+  position: relative;
+}
+
 .loading-progress[data-state="filtered-loading"] {
   position: relative;
 }
 
-.loading-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: linear-gradient(90deg, rgba(0,123,255,0.8), rgba(0,86,179,0.8));
-  opacity: 0.8;
-}
-
-.loading-layer::after {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-  animation: loading-shimmer 1.5s infinite;
-}
-
-.filtered-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
+.loading-progress[data-state="filtered"] .loaded-segment {
   background: #666;
-  z-index: 1;
 }
 
-.filtered-layer::after {
-  display: none; /* No shimmer on filtered layer */
+/* Legacy support for old progress bars */
+.loading-progress-bar {
+  height: 100%;
+  background: #495057;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+/* Only animate shimmer when actually loading */
+.loading-progress-bar.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  animation: loading-shimmer 1.5s infinite;
 }
 
 /* Different states for progress bar */

@@ -214,6 +214,16 @@ class DivTable {
         }
         fieldNames[field] = { type: fieldType, values: fieldValues };
       });
+    } else {
+      // When no data is available, create basic field structure from column definitions
+      this.columns.forEach(col => {
+        if (col.field) {
+          fieldNames[col.field] = { 
+            type: col.type || 'string', 
+            values: col.values || [] 
+          };
+        }
+      });
     }
 
     if (typeof createQueryEditor === 'function') {
@@ -222,25 +232,12 @@ class DivTable {
         initialValue: this.currentQuery,
         placeholder: this.generateDynamicPlaceholder(fieldNames)
       });
+      
+      // Store field names for comparison in future updates
+      this.queryEditor.fieldNames = fieldNames;
 
-      // Clear any initial markers if the editor starts empty (like in smart-table)
-      setTimeout(() => {
-        const value = this.queryEditor.model?.getValue();
-        if (value === '') {
-          this.monaco.editor.setModelMarkers(this.queryEditor.model, this.queryEditor.model.getLanguageId(), []);
-        }
-      }, 10);
-
-      // Set up proper query change handling with error detection like smart-table
-      if (this.queryEditor.model) {
-        this.queryEditor.model.onDidChangeContent(() => {
-          const query = this.queryEditor.model.getValue();
-          this.handleQueryChange(query);
-        });
-      }
-
-      // Set up additional query listeners with debouncing like smart-table
-      this._setupQueryListeners();
+      // Set up event handlers for query editor
+      this.setupQueryEventHandlers();
     }
   }
 
@@ -276,6 +273,54 @@ class DivTable {
       if (errorTimeout) clearTimeout(errorTimeout);
       errorTimeout = setTimeout(() => this.handleQueryChange(), 350);
     });
+  }
+
+  _shouldUpdateFieldNames(currentFieldNames, newFieldNames) {
+    // Check if field names need updating by comparing current vs new
+    if (!currentFieldNames || Object.keys(currentFieldNames).length === 0) {
+      return Object.keys(newFieldNames).length > 0;
+    }
+    
+    // Check if number of fields changed
+    if (Object.keys(currentFieldNames).length !== Object.keys(newFieldNames).length) {
+      return true;
+    }
+    
+    // Check if any field names or types changed
+    for (const fieldName in newFieldNames) {
+      if (!currentFieldNames[fieldName]) {
+        return true; // New field added
+      }
+      
+      if (currentFieldNames[fieldName].type !== newFieldNames[fieldName].type) {
+        return true; // Field type changed
+      }
+      
+      // Check if field values changed (for enum fields)
+      const currentValues = currentFieldNames[fieldName].values || [];
+      const newValues = newFieldNames[fieldName].values || [];
+      
+      if (currentValues.length !== newValues.length) {
+        return true;
+      }
+      
+      // Sort both arrays and compare - order shouldn't matter for value suggestions
+      const sortedCurrentValues = [...currentValues].sort();
+      const sortedNewValues = [...newValues].sort();
+      
+      if (sortedCurrentValues.some((val, idx) => val !== sortedNewValues[idx])) {
+        return true;
+      }
+    }
+    
+    // Check if any field was removed
+    for (const fieldName in currentFieldNames) {
+      if (!newFieldNames[fieldName]) {
+        return true; // Field removed
+      }
+    }
+    
+    return false; // No changes detected
   }
 
   generateDynamicPlaceholder(fieldNames) {
@@ -1616,6 +1661,19 @@ class DivTable {
     // Add refresh button if enabled - always in the first line container
     if (this.showRefreshButton) {
       const refreshButton = this.createRefreshButton();
+      
+      // Show loading state on refresh button for ANY loading operation
+      // This provides consistent UI and visual feedback
+      if (this.isLoading || this.isLoadingState) {
+        refreshButton.classList.add('refreshing');
+        refreshButton.disabled = true;
+        refreshButton.title = 'Loading data...';
+      } else {
+        refreshButton.classList.remove('refreshing');
+        refreshButton.disabled = false;
+        refreshButton.title = 'Refresh data';
+      }
+      
       firstLineContainer.appendChild(refreshButton);
     }
     
@@ -1675,43 +1733,76 @@ class DivTable {
     const progressLine = document.createElement('div');
     progressLine.className = 'progress-line';
     
-    // Show progress bar for loading or filtering states
-    if ((this.virtualScrolling && loaded < total) || filtered < total) {
+    // Always use current totalRecords for accurate calculations
+    // This ensures correct shimmer size even when totalRecords changes during loading
+    const currentTotal = this.virtualScrolling ? this.totalRecords : this.data.length;
+    
+    // Show progress bar only when not all data is loaded yet (hide when fully loaded)
+    const showLoadingProgress = this.virtualScrolling && loaded < currentTotal;
+    const showFilterProgress = filtered < currentTotal;
+    
+    if (showLoadingProgress || showFilterProgress) {
       const progressContainer = document.createElement('div');
       progressContainer.className = 'loading-progress';
       
-      // When both filtered and loading, show layered progress bars
-      if (this.virtualScrolling && loaded < total && filtered < loaded) {
-        // Filtered + Loading state: show both layers
-        const filteredPercentage = (filtered / total) * 100;
-        const loadedPercentage = (loaded / total) * 100;
+      // Calculate loading segment size with stable batch size that doesn't shrink with smaller totals
+      // Use the larger of: pageSize, or percentage of current total, to maintain consistent shimmer size
+      const percentageBased = Math.ceil(currentTotal * 0.1); // 10% of current total
+      const pageBasedBatch = this.pageSize || 50; // Use configured page size or default 50
+      const estimatedBatchSize = Math.max(pageBasedBatch, Math.min(percentageBased, 100)); // At least pageSize, max 100
+      const loadingSegmentEnd = this.isLoading ? Math.min(currentTotal, loaded + estimatedBatchSize) : loaded;
+      
+      // When both filtered and loading, show filtered state with loading indication
+      if (showLoadingProgress && showFilterProgress && filtered < loaded) {
+        // Filtered + Loading state
+        const filteredPercentage = (filtered / currentTotal) * 100;
+        const loadedPercentage = (loaded / currentTotal) * 100;
+        const loadingEndPercentage = (loadingSegmentEnd / currentTotal) * 100;
         
-        // Background loading bar (transparent animated)
-        const loadingBar = document.createElement('div');
-        loadingBar.className = 'loading-progress-bar loading-layer';
-        loadingBar.style.width = `${loadedPercentage}%`;
+        // Solid loaded segment (up to filtered amount)
+        const loadedBar = document.createElement('div');
+        loadedBar.className = 'progress-segment loaded-segment';
+        loadedBar.style.width = `${filteredPercentage}%`;
         
-        // Foreground filtered bar (solid)
-        const filteredBar = document.createElement('div');
-        filteredBar.className = 'loading-progress-bar filtered-layer';
-        filteredBar.style.width = `${filteredPercentage}%`;
+        // Loading segment (if actively loading beyond filtered data)
+        if (this.isLoading && loadingSegmentEnd > filtered) {
+          const loadingBar = document.createElement('div');
+          loadingBar.className = 'progress-segment loading-segment';
+          loadingBar.style.left = `${filteredPercentage}%`;
+          loadingBar.style.width = `${loadingEndPercentage - filteredPercentage}%`;
+          progressContainer.appendChild(loadingBar);
+        }
         
-        progressContainer.appendChild(loadingBar);
-        progressContainer.appendChild(filteredBar);
+        progressContainer.appendChild(loadedBar);
         progressContainer.setAttribute('data-state', 'filtered-loading');
-      } else if (this.virtualScrolling && loaded < total) {
-        // Loading only
-        const percentage = (loaded / total) * 100;
-        const progressBar = document.createElement('div');
-        progressBar.className = 'loading-progress-bar';
-        progressBar.style.width = `${percentage}%`;
-        progressContainer.appendChild(progressBar);
-        progressContainer.setAttribute('data-state', 'loading');
-      } else if (filtered < total) {
+      } else if (showLoadingProgress) {
+        // Loading state: show loaded (solid) + loading (shimmer) segments
+        const loadedPercentage = (loaded / currentTotal) * 100;
+        const loadingEndPercentage = (loadingSegmentEnd / currentTotal) * 100;
+        
+        // Solid loaded segment
+        if (loaded > 0) {
+          const loadedBar = document.createElement('div');
+          loadedBar.className = 'progress-segment loaded-segment';
+          loadedBar.style.width = `${loadedPercentage}%`;
+          progressContainer.appendChild(loadedBar);
+        }
+        
+        // Loading segment with shimmer (only when actively loading)
+        if (this.isLoading && loadingSegmentEnd > loaded) {
+          const loadingBar = document.createElement('div');
+          loadingBar.className = 'progress-segment loading-segment';
+          loadingBar.style.left = `${loadedPercentage}%`;
+          loadingBar.style.width = `${loadingEndPercentage - loadedPercentage}%`;
+          progressContainer.appendChild(loadingBar);
+        }
+        
+        progressContainer.setAttribute('data-state', 'sequential-loading');
+      } else if (showFilterProgress) {
         // Filtered only
-        const percentage = (filtered / total) * 100;
+        const percentage = (filtered / currentTotal) * 100;
         const progressBar = document.createElement('div');
-        progressBar.className = 'loading-progress-bar';
+        progressBar.className = 'progress-segment loaded-segment';
         progressBar.style.width = `${percentage}%`;
         progressContainer.appendChild(progressBar);
         progressContainer.setAttribute('data-state', 'filtered');
@@ -1750,22 +1841,21 @@ class DivTable {
         // If this is a virtual scrolling table, reset and load first page
         if (this.virtualScrolling && typeof this.onNextPage === 'function') {
           
+          // Preserve current filter/query before resetting
+          const preservedQuery = this.currentQuery;
+          const preservedEditorValue = this.queryEditor?.editor ? this.queryEditor.editor.getValue() : '';
+          
           // Reset to loading state
           this.isLoadingState = true;
           this.data = [];
           this.filteredData = [];
           this.selectedRows.clear();
-          this.currentQuery = '';
-          
+
           // Reset pagination state
           this.currentPage = 0;
           this.isLoading = false;
           this.hasMoreData = true;
           
-          // Update Monaco editor if it exists
-          if (this.queryEditor?.editor) {
-            this.queryEditor.editor.setValue('');
-          }
           
           // Update the query engine with empty data
           this.queryEngine.setObjects([]);
@@ -1773,8 +1863,8 @@ class DivTable {
           // Re-render to show loading state
           this.render();
           
-          // Load first page
-          const firstPageData = await this.onNextPage(0, this.pageSize);
+          const firstPageToLoad = 0; // Start with page 0
+          const firstPageData = await this.onNextPage(firstPageToLoad, this.pageSize);
           
           if (firstPageData && Array.isArray(firstPageData) && firstPageData.length > 0) {
             this.replaceData(firstPageData);
@@ -1786,7 +1876,20 @@ class DivTable {
         } else {
           // For non-virtual scrolling tables, call the onRefresh callback if provided
           if (typeof this.onRefresh === 'function') {
+            // Set loading state if showLoadingPlaceholder is enabled
+            if (this.showLoadingPlaceholder) {
+              this.isLoadingState = true;
+              this.render(); // Show loading placeholder immediately
+            }
+            
             await Promise.resolve(this.onRefresh());
+            
+            // Clear loading state after onRefresh completes
+            // (unless replaceData was called which already clears it)
+            if (this.isLoadingState) {
+              this.isLoadingState = false;
+              this.render();
+            }
           } else {
             console.log('ℹ️ Refresh: No onRefresh callback provided for non-virtual scrolling table');
           }
@@ -1821,6 +1924,10 @@ class DivTable {
     // Clear existing content
     this.infoSection.innerHTML = '';
     
+    // Create container for first line with refresh button
+    const firstLineContainer = document.createElement('div');
+    firstLineContainer.className = 'info-line-container';
+    
     // First line: Selection info (only show when there are selections)
     if (selected > 0) {
       const selectionLine = document.createElement('div');
@@ -1831,7 +1938,24 @@ class DivTable {
       selectionInfo.textContent = `${selected} selected`;
       
       selectionLine.appendChild(selectionInfo);
-      this.infoSection.appendChild(selectionLine);
+      firstLineContainer.appendChild(selectionLine);
+    }
+    
+    // Add refresh button if enabled - show loading state during anticipated progress
+    if (this.showRefreshButton) {
+      const refreshButton = this.createRefreshButton();
+      
+      // During anticipated progress, we're loading, so show spinning state
+      refreshButton.classList.add('refreshing');
+      refreshButton.disabled = true;
+      refreshButton.title = 'Loading data...';
+      
+      firstLineContainer.appendChild(refreshButton);
+    }
+    
+    // Only add the container if it has content
+    if (firstLineContainer.children.length > 0) {
+      this.infoSection.appendChild(firstLineContainer);
     }
     
     // Second line: Stats with anticipated progress - smaller font
@@ -2036,49 +2160,87 @@ class DivTable {
     }
 
     // Check if we need to update field values for completion suggestions
-    // This is particularly important for fields with specific value sets
-    const hasFieldsWithValues = this.columns.some(col => 
-      col.values || (col.field && this.data.length > 0)
-    );
+    // This is particularly important when starting with no data and then loading data
+    if (this.data.length === 0) {
+      return; // No data to analyze, keep current editor
+    }
 
-    if (hasFieldsWithValues) {
-      // Recreate field names object with updated values
-      const updatedFieldNames = {};
-      
-      this.columns.forEach(col => {
-        if (!col.field) return;
-        
-        // Determine field type from data if not explicitly set
-        let fieldType = col.type || 'string';
-        let fieldValues = col.values;
-        
-        // If no explicit values but we have data, extract unique values for string fields
-        if (!fieldValues && this.data.length > 0) {
-          const uniqueValues = [...new Set(
-            this.data
-              .map(item => item[col.field])
-              .filter(val => val !== null && val !== undefined && val !== '')
-              .map(val => String(val))
-          )].sort();
+    // Get existing field names structure (defined at construction time)
+    const currentFieldNames = this.queryEditor.editor.getFieldNames() || {};
+    
+    // Only update VALUES for existing fields, don't add new field definitions
+    const updatedFieldNames = { ...currentFieldNames };
+    
+    if (this.data.length > 0) {
+      const sampleItem = this.data[0];
+      Object.keys(sampleItem).forEach(field => {
+        // Only update if this field already exists in the schema
+        if (currentFieldNames[field]) {
+          const existingField = currentFieldNames[field];
           
-          // Only include values for string fields with reasonable number of unique values
-          if (fieldType === 'string' && uniqueValues.length <= 50 && uniqueValues.length > 0) {
-            fieldValues = uniqueValues;
+          // For string fields, merge new values with existing ones
+          if (existingField.type === 'string' && existingField.values) {
+            const uniqueValues = [...new Set(this.data.map(item => item[field]))];
+            const definedValues = uniqueValues.filter(value =>
+              value !== null && value !== undefined && value !== ''
+            );
+            const hasUndefinedValues = uniqueValues.some(value =>
+              value === null || value === undefined || value === ''
+            );
+            
+            // Merge existing values with new values (union)
+            const existingValues = existingField.values.filter(v => v !== 'NULL');
+            const mergedValues = [...new Set([...existingValues, ...definedValues])];
+            
+            updatedFieldNames[field] = {
+              ...existingField,
+              values: hasUndefinedValues ? [...mergedValues, 'NULL'] : mergedValues
+            };
+          } else {
+            // For non-string fields, keep the existing definition
+            updatedFieldNames[field] = existingField;
           }
         }
-        
-        updatedFieldNames[col.field] = {
-          type: fieldType,
-          values: fieldValues,
-          groupable: col.groupable !== false
-        };
+        // Note: We don't add new fields that weren't in the original schema
       });
-
-      // Update the query editor's field names if they changed
-      // Note: This would require the query editor to support dynamic updates
-      // For now, we'll just log that an update might be beneficial
-      console.log('🔄 Field values may have changed, query editor could benefit from refresh');
     }
+
+    // Compare with existing field names to see if update is needed
+    const needsUpdate = this._shouldUpdateFieldNames(currentFieldNames, updatedFieldNames);
+    
+    if (needsUpdate) {
+      // Use dynamic update approach only - no fallback to recreation
+      try {
+        const success = this.queryEditor.editor.updateFieldNames(updatedFieldNames);
+        
+        if (!success) {
+          console.warn('⚠️ Failed to update query editor field values - dynamic update not available');
+        }
+      } catch (error) {
+        console.warn('⚠️ Error updating query editor field values:', error);
+      }
+    }
+  }
+
+  setupQueryEventHandlers() {
+    // Clear any initial markers if the editor starts empty
+    setTimeout(() => {
+      const value = this.queryEditor.model?.getValue();
+      if (value === '') {
+        this.monaco.editor.setModelMarkers(this.queryEditor.model, this.queryEditor.model.getLanguageId(), []);
+      }
+    }, 10);
+
+    // Set up proper query change handling
+    if (this.queryEditor.model) {
+      this.queryEditor.model.onDidChangeContent(() => {
+        const query = this.queryEditor.model.getValue();
+        this.handleQueryChange(query);
+      });
+    }
+
+    // Set up additional query listeners with debouncing
+    this._setupQueryListeners();
   }
 
   // Debug method to verify data consistency
@@ -2154,75 +2316,40 @@ class DivTable {
     
     // Load next page when we're close to the end of currently loaded data
     if (estimatedVisibleRecord >= triggerPoint && this.hasMoreData && !this.isLoading) {
-      console.log('📊 Virtual scroll triggered:', {
-        estimatedVisibleRecord: estimatedVisibleRecord,
-        triggerPoint: triggerPoint,
-        loadingThreshold: this.loadingThreshold,
-        currentDataLength: currentDataLength,
-        hasMoreData: this.hasMoreData,
-        isLoading: this.isLoading
-      });
       this.loadNextPage();
     }
   }
 
   async loadNextPage() {
     if (this.isLoading || !this.hasMoreData) {
-      console.log('🚫 Load next page skipped:', { isLoading: this.isLoading, hasMoreData: this.hasMoreData });
       return;
     }
-    
-    console.log('🔄 Loading next page...', { currentPage: this.currentPage, dataLength: this.data.length });
     
     this.isLoading = true;
     
     // Show loading placeholder rows for the next page
     this.showLoadingPlaceholders();
     
-    // Immediately update info section with anticipated progress
     this.updateInfoSectionWithAnticipatedProgress();
     
     // Start progress bar animation
     this.startProgressBarAnimation();
     
     try {
-      // Recalculate current page based on current data count
-      // If current count <= pageSize, then we're on page 0
-      const currentDataCount = this.data.length;
-      this.currentPage = currentDataCount <= this.pageSize ? 0 : Math.floor((currentDataCount - 1) / this.pageSize);
-      
-      // Call the pagination callback - note: currentPage is zero-indexed, so currentPage+1 is the next page to load
+      // Simple pagination: just increment currentPage and request next page
       const nextPageToLoad = this.currentPage + 1;
-      console.log(`📄 Requesting page ${nextPageToLoad} (recalculated currentPage: ${this.currentPage}, dataCount: ${currentDataCount})`);
       const newData = await this.onNextPage(nextPageToLoad, this.pageSize);
       
-      console.log('📦 Received new data:', { newRecords: newData?.length || 0, requestedPage: nextPageToLoad });
+      // Set loading to false immediately after getting data but before processing it
+      // This ensures the progress bar doesn't show loading segment when UI updates
+      this.isLoading = false;
       
       if (newData && Array.isArray(newData) && newData.length > 0) {
-        // Use appendData for all the heavy lifting - it handles:
-        // - Validation
-        // - Upsert behavior (add new, update existing)
-        // - Query engine updates
-        // - Query editor refresh
-        // - Re-applying current query/filter
-        // - Info section updates and re-rendering
         const result = this.appendData(newData);
-        
-        // Log the results for debugging
-        if (result.updated > 0) {
-          console.log('🔄 Updated existing records during pagination:', result.updated);
-        }
-        if (result.invalid.length > 0) {
-          console.warn('⚠️ Invalid records found during pagination:', result.invalid.length);
-        }
         
         // Only increment page if we actually processed some data
         if (result.added > 0 || result.updated > 0) {
-          const oldPage = this.currentPage;
-          // Recalculate current page based on new data count
-          const newDataCount = this.data.length;
-          this.currentPage = newDataCount <= this.pageSize ? 0 : Math.floor((newDataCount - 1) / this.pageSize);
-          console.log(`📈 Page recalculated: ${oldPage} → ${this.currentPage} (dataCount: ${newDataCount})`);
+          this.currentPage = nextPageToLoad;
         }
         
         // Check if we have more data - improved logic to determine if current page is the last page
@@ -2234,28 +2361,23 @@ class DivTable {
           this.hasMoreData = newData.length === this.pageSize;
         }
         
-        console.log('✅ Page loaded successfully:', { 
-          totalRecords: this.data.length, 
-          currentPage: this.currentPage, 
-          hasMoreData: this.hasMoreData,
-          addedRecords: result.added,
-          updatedRecords: result.updated,
-          invalidRecords: result.skipped
-        });
+        // Additional check: if we got fewer records than the page size, we're definitely at the end
+        if (newData.length < this.pageSize) {
+          this.hasMoreData = false;
+        }
       } else {
         // No more data available
         this.hasMoreData = false;
-        console.log('🏁 No more data available');
       }
     } catch (error) {
       console.error('❌ Error loading next page:', error);
+      this.isLoading = false;
       this.showErrorIndicator();
     } finally {
       this.isLoading = false;
-      // Remove loading placeholders whether success or error
       this.hideLoadingPlaceholders();
-      // Stop progress bar animation
       this.stopProgressBarAnimation();
+      this.clearRefreshButtonLoadingState();
     }
   }
 
@@ -2392,6 +2514,18 @@ class DivTable {
     });
   }
 
+  clearRefreshButtonLoadingState() {
+    // Find refresh button and clear loading state
+    if (this.showRefreshButton) {
+      const refreshButton = this.infoSection.querySelector('.refresh-button');
+      if (refreshButton) {
+        refreshButton.classList.remove('refreshing');
+        refreshButton.disabled = false;
+        refreshButton.title = 'Refresh data';
+      }
+    }
+  }
+
   // Public API for virtual scrolling configuration
   setTotalRecords(total) {
     if (typeof total !== 'number' || total < 0) {
@@ -2505,19 +2639,17 @@ class DivTable {
       );
       
       if (existingIndex >= 0) {
-        // Update existing record
         this.data[existingIndex] = { ...record };
         updatedCount++;
       } else {
-        // Add new record
         this.data.push(record);
         addedCount++;
       }
     }
     
     if (addedCount > 0 || updatedCount > 0) {
-      // Clear loading state when data is added
       this.isLoadingState = false;
+      this.clearRefreshButtonLoadingState();
       
       // Update the query engine with new/updated data
       this.queryEngine.setObjects(this.data);
@@ -2581,35 +2713,27 @@ class DivTable {
       validRecords.push(record);
     }
 
-    // Replace the entire data array with validated data
     this.data = validRecords;
-    
-    // Clear loading state when data is provided
     this.isLoadingState = false;
+    this.clearRefreshButtonLoadingState();
     
-    // Update the query engine with new data
     this.queryEngine.setObjects(this.data);
     
-    // Update query editor if field values changed (for completion suggestions)
     this.updateQueryEditorIfNeeded();
     
-    // Keep the current query and re-apply it to filter the new data
     if (this.currentQuery && this.currentQuery.trim()) {
       this.applyQuery(this.currentQuery);
     } else {
       this.filteredData = [...this.data];
     }
     
-    // Clear selection state (using correct property name)
     this.selectedRows.clear();
     
-    // Reset virtual scrolling state
     this.virtualScrollingState = {
       scrollTop: 0,
       displayStartIndex: 0,
       displayEndIndex: Math.min(this.pageSize, this.data.length),
       isLoading: false,
-      //loadedPages: new Set([0]) // First page is page 0
     };
     
     // Reset pagination to first page (zero-indexed)
@@ -2654,6 +2778,11 @@ class DivTable {
     if (this.isLoadingState) {
       this.render(); // Re-render to show updated text
     }
+  }
+
+  setLoadingState(isLoading) {
+    this.isLoadingState = Boolean(isLoading);
+    this.render(); // Re-render to show/hide loading placeholder
   }
 }
 

@@ -1932,5 +1932,121 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
     container.classList.remove('focused');
   });
 
+  // Add method to update field names dynamically
+  editor.updateFieldNames = function(newFieldNames) {
+    return updateQueryEditorFieldNames(monaco, languageId, newFieldNames);
+  };
+
+  // Add method to get current field names
+  editor.getFieldNames = function() {
+    return getQueryEditorFieldNames(languageId);
+  };
+
+  // Store language ID for reference
+  editor.languageId = languageId;
+
   return { editor, model };
+}
+
+/**
+ * Updates field names for an existing query editor without recreating it
+ * @param {object} monaco The Monaco editor instance
+ * @param {string} languageId The language ID used by the editor
+ * @param {object} newFieldNames New field definitions
+ * @returns {boolean} True if update was successful
+ */
+function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
+  try {
+    // Store the reference to the language setup for this language ID
+    const existingSetup = registeredLanguages.get(languageId);
+    if (!existingSetup) {
+      console.warn('No existing language setup found for', languageId);
+      return false;
+    }
+
+    // Dispose existing completion provider
+    if (existingSetup.disposables) {
+      // Original structure with disposables array
+      const completionProviderIndex = 2; // Based on setupLanguageSupport disposables order
+      const validationProviderIndex = 3;
+      
+      if (existingSetup.disposables[completionProviderIndex]) {
+        existingSetup.disposables[completionProviderIndex].dispose();
+      }
+      
+      if (existingSetup.disposables[validationProviderIndex]) {
+        existingSetup.disposables[validationProviderIndex].dispose();
+      }
+    } else {
+      // Updated structure with individual providers
+      if (existingSetup.completionProvider) {
+        existingSetup.completionProvider.dispose();
+      }
+
+      if (existingSetup.validationProvider) {
+        existingSetup.validationProvider.dispose();
+      }
+    }
+
+    // Create new completion provider with updated field names
+    const newCompletionProvider = setupCompletionProvider(monaco, { 
+      fieldNames: newFieldNames, 
+      languageId 
+    });
+
+    // Create new validation provider with updated field names
+    const newValidationProvider = setupValidation(monaco, { 
+      fieldNames: newFieldNames, 
+      languageId 
+    });
+
+    // Update the stored language setup - maintain consistent structure
+    existingSetup.fieldNames = newFieldNames;
+    
+    if (existingSetup.disposables) {
+      // Update disposables array
+      existingSetup.disposables[2] = newCompletionProvider.provider;
+      existingSetup.disposables[3] = newValidationProvider;
+    } else {
+      // Update individual providers
+      existingSetup.completionProvider = newCompletionProvider.provider;
+      existingSetup.validationProvider = newValidationProvider;
+    }
+
+    // Force re-validation for all models using this language
+    const models = monaco.editor.getModels();
+    models.forEach(model => {
+      if (model.getLanguageId() === languageId) {
+        // Trigger validation update by setting a marker and clearing it
+        const currentValue = model.getValue();
+        const currentPosition = model.getPositionAt(currentValue.length);
+        
+        // Force revalidation by making a minimal change and reverting
+        model.pushEditOperations([], [{
+          range: new monaco.Range(currentPosition.lineNumber, currentPosition.column, currentPosition.lineNumber, currentPosition.column),
+          text: ' '
+        }], () => null);
+        
+        model.pushEditOperations([], [{
+          range: new monaco.Range(currentPosition.lineNumber, currentPosition.column, currentPosition.lineNumber, currentPosition.column + 1),
+          text: ''
+        }], () => null);
+      }
+    });
+
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to update query editor field names:', error);
+    return false;
+  }
+}
+
+/**
+ * Gets current field names for a query editor
+ * @param {string} languageId The language ID used by the editor
+ * @returns {object|null} Current field names or null if not found
+ */
+function getQueryEditorFieldNames(languageId) {
+  const existingSetup = registeredLanguages.get(languageId);
+  return existingSetup ? existingSetup.fieldNames : null;
 }

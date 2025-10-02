@@ -97,6 +97,30 @@ const columns = [
 | `groupable` | boolean | `true` | Allow grouping by this column |
 | `render` | function | `null` | Custom render function: `(value, row) => string` |
 
+**HTML Content Support:**
+- Column labels (`label` property) support HTML content
+- Cell values support HTML content directly from data (no render function needed)
+- Loading placeholder text supports HTML content
+
+```javascript
+// HTML in column labels
+{
+  field: 'status',
+  label: '📊 Status<br><small>with icons</small>'
+}
+
+// HTML in cell values (directly from data)
+const data = [
+  { 
+    status: '<span style="color: green;">✅ Active</span>',
+    name: '<strong>John Doe</strong>'
+  }
+];
+
+// HTML in loading placeholder
+loadingPlaceholderText: '🔄 <em>Loading data...</em>'
+```
+
 ### Responsive Options
 
 | Property | Type | Options | Description |
@@ -112,13 +136,17 @@ const columns = [
 ### Data Management
 
 #### `replaceData(newData)`
+
 Replace entire dataset with new data.
+
 ```javascript
 divTable.replaceData(newDataArray);
 ```
 
 #### `addRecord(record)`
+
 Add or update a single record.
+
 ```javascript
 divTable.addRecord({
   id: 123,
@@ -128,13 +156,17 @@ divTable.addRecord({
 ```
 
 #### `removeRecord(id)`
+
 Remove a record by primary key.
+
 ```javascript
 const removedRecord = divTable.removeRecord(123);
 ```
 
 #### `appendData(newData)`
+
 Append new records to existing data (with upsert behavior).
+
 ```javascript
 const result = divTable.appendData(additionalRecords);
 // Returns: { added: 5, updated: 2, skipped: 0, invalid: [] }
@@ -143,7 +175,9 @@ const result = divTable.appendData(additionalRecords);
 ### Query & Filtering
 
 #### `applyQuery(query)`
+
 Apply a query string to filter data.
+
 ```javascript
 divTable.applyQuery('age > 25 AND city = "New York"');
 ```
@@ -151,13 +185,17 @@ divTable.applyQuery('age > 25 AND city = "New York"');
 ### Sorting & Grouping
 
 #### `sort(field, direction)`
+
 Sort data by specified field.
+
 ```javascript
 divTable.sort('name', 'asc');
 ```
 
 #### `group(field)`
+
 Group data by specified field.
+
 ```javascript
 divTable.group('department');
 ```
@@ -197,27 +235,63 @@ divTable.resetToLoading();
 ```
 
 #### `setLoadingPlaceholderText(text)`
+
 Update loading placeholder text.
+
 ```javascript
 divTable.setLoadingPlaceholderText('Fetching latest data...');
+```
+
+#### `setLoadingState(isLoading)`
+
+Manually control the loading state. When `true`, shows loading placeholder (if enabled). When `false`, shows data or empty state.
+
+```javascript
+divTable.setLoadingState(true);  // Show loading placeholder
+divTable.setLoadingState(false); // Hide loading placeholder
+```
+
+### Query Editor
+
+#### Dynamic Field Updates
+
+The query editor automatically updates its field suggestions when data changes, but you can also manually control this:
+
+```javascript
+// Get current field names used by query editor
+const currentFields = divTable.queryEditor.editor.getFieldNames();
+
+// Update field names dynamically (useful for custom scenarios)
+const newFieldNames = {
+  name: { type: 'string', values: ['Alice', 'Bob', 'Carol'] },
+  age: { type: 'number', values: [] },
+  active: { type: 'boolean', values: [] }
+};
+divTable.queryEditor.editor.updateFieldNames(newFieldNames);
 ```
 
 ### Virtual Scrolling
 
 #### `setTotalRecords(total)`
+
 Update total record count for virtual scrolling.
+
 ```javascript
 divTable.setTotalRecords(10000);
 ```
 
 #### `setPageSize(size)`
+
 Update page size for virtual scrolling.
+
 ```javascript
 divTable.setPageSize(50);
 ```
 
 #### `setVirtualScrollingConfig(config)`
+
 Update virtual scrolling configuration.
+
 ```javascript
 divTable.setVirtualScrollingConfig({
   totalRecords: 10000,
@@ -228,9 +302,12 @@ divTable.setVirtualScrollingConfig({
 
 ## Query Language
 
-The widget supports an advanced query language for filtering:
+The widget supports an advanced query language for filtering with intelligent autocomplete:
+
+**Dynamic Field Suggestions:** When the table is initialized with no data, the query editor provides basic field suggestions from column definitions. When data is loaded (via `replaceData()` or other methods), the editor automatically updates its completion providers dynamically to provide enhanced suggestions including actual field values for string fields, making it easier to construct accurate queries. This update happens without recreating the editor, preserving user state and performance.
 
 ### Basic Syntax
+
 - `field = value` - Exact match
 - `field != value` - Not equal
 - `field > value` - Greater than
@@ -239,6 +316,7 @@ The widget supports an advanced query language for filtering:
 - `field <= value` - Less than or equal
 
 ### String Operations
+
 - `name = "John"` - Exact string match
 - `name contains "John"` - Substring search
 - `name starts "Jo"` - Starts with

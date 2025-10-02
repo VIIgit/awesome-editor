@@ -262,7 +262,7 @@
             // Stop generating data after 1000 records for demo
             // Page 0: IDs 1-100, Page 1: IDs 101-200, Page 2: IDs 201-300, etc.
             // Page 9: IDs 901-1000, Page 10: startId = 1001 should return empty
-            if (startId > 1000) {
+            if (startId > 477) {
               resolve([]); // No more data
             } else {
               resolve(newData);
@@ -342,6 +342,7 @@
           // Callbacks
           onNextPage: async (page, pageSize) => {
             console.log(`📄 Loading page ${page} (${pageSize} records per page)`);
+            virtualScrollingTable.setTotalRecords(477);
             return await simulateDataFetch(page, pageSize);
           },
 
