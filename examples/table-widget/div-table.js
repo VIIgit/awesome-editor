@@ -22,6 +22,10 @@ class DivTable {
     this.showRefreshButton = options.showRefreshButton || false;
     this.onRefresh = options.onRefresh || (() => {});
     
+    // Auto-fetch options
+    this.showAutoFetchButton = options.showAutoFetchButton !== false; // Enabled by default
+    this.autoFetchDelay = options.autoFetchDelay || 500; // Delay between auto-fetch requests in ms
+    
     // Virtual scrolling options
     this.virtualScrolling = options.virtualScrolling || false;
     this.pageSize = options.pageSize || 100;
@@ -49,6 +53,11 @@ class DivTable {
     this.estimatedRowHeight = 40; // Default row height for calculations
     this.visibleStartIndex = 0;
     this.visibleEndIndex = this.pageSize;
+    
+    // Auto-fetch state
+    this.isAutoFetching = false;
+    this.autoFetchPaused = false;
+    this.autoFetchTimeout = null;
     
     // Find primary key field first
     this.primaryKeyField = this.columns.find(col => col.primaryKey)?.field || 'id';
@@ -1677,6 +1686,20 @@ class DivTable {
       firstLineContainer.appendChild(refreshButton);
     }
     
+    // Add auto-fetch button if enabled (only for virtual scrolling tables)
+    if (this.showAutoFetchButton && this.virtualScrolling) {
+      const autoFetchButton = this.createAutoFetchButton();
+      
+      // Disable auto-fetch button when loading or no more data
+      if (this.isLoading || this.isLoadingState || (!this.hasMoreData && !this.isAutoFetching)) {
+        autoFetchButton.disabled = true;
+      } else {
+        autoFetchButton.disabled = false;
+      }
+      
+      firstLineContainer.appendChild(autoFetchButton);
+    }
+    
     // Only add the container if it has content
     if (firstLineContainer.children.length > 0) {
       this.infoSection.appendChild(firstLineContainer);
@@ -1834,6 +1857,11 @@ class DivTable {
       e.preventDefault();
       e.stopPropagation();
       
+      // Stop auto-fetch if it's running
+      if (this.isAutoFetching) {
+        this.stopAutoFetch();
+      }
+      
       // Add visual feedback
       refreshButton.classList.add('refreshing');
       
@@ -1910,6 +1938,130 @@ class DivTable {
     return refreshButton;
   }
 
+  createAutoFetchButton() {
+    // Create auto-fetch button container
+    const autoFetchButton = document.createElement('button');
+    autoFetchButton.className = 'auto-fetch-button';
+    autoFetchButton.type = 'button';
+    autoFetchButton.title = 'Auto-fetch all pages';
+    autoFetchButton.setAttribute('aria-label', 'Automatically fetch all remaining pages');
+    
+    // Add play/pause icon (using SVG)
+    const updateButtonIcon = (isPaused) => {
+      if (this.isAutoFetching && !isPaused) {
+        // Show pause icon when auto-fetching
+        autoFetchButton.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+        `;
+        autoFetchButton.title = 'Pause auto-fetch';
+        autoFetchButton.classList.add('active');
+      } else {
+        // Show play icon when not auto-fetching or paused
+        autoFetchButton.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        `;
+        autoFetchButton.title = isPaused ? 'Resume auto-fetch' : 'Auto-fetch all pages';
+        if (isPaused) {
+          autoFetchButton.classList.add('paused');
+        } else {
+          autoFetchButton.classList.remove('paused');
+        }
+      }
+    };
+    
+    // Initial icon
+    updateButtonIcon(false);
+    
+    // Add click handler
+    autoFetchButton.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (this.isAutoFetching) {
+        // Toggle pause/resume
+        this.autoFetchPaused = !this.autoFetchPaused;
+        updateButtonIcon(this.autoFetchPaused);
+        
+        if (!this.autoFetchPaused) {
+          // Resume auto-fetching
+          this.continueAutoFetch();
+        }
+      } else {
+        // Start auto-fetching
+        this.startAutoFetch(updateButtonIcon);
+      }
+    });
+    
+    // Store reference for updating icon from external methods
+    this.autoFetchButton = autoFetchButton;
+    this.updateAutoFetchButtonIcon = updateButtonIcon;
+    
+    return autoFetchButton;
+  }
+
+  async startAutoFetch(updateButtonIcon) {
+    if (!this.virtualScrolling || !this.hasMoreData || this.isAutoFetching) {
+      return;
+    }
+    
+    this.isAutoFetching = true;
+    this.autoFetchPaused = false;
+    updateButtonIcon(false);
+    
+    console.log('🚀 Starting auto-fetch...');
+    
+    try {
+      await this.continueAutoFetch();
+    } catch (error) {
+      console.error('❌ Auto-fetch error:', error);
+      this.stopAutoFetch();
+    }
+  }
+
+  async continueAutoFetch() {
+    while (this.hasMoreData && this.isAutoFetching && !this.autoFetchPaused) {
+      // Load next page
+      await this.loadNextPage();
+      
+      // Wait for the specified delay before fetching the next page
+      if (this.hasMoreData && !this.autoFetchPaused) {
+        await new Promise(resolve => {
+          this.autoFetchTimeout = setTimeout(resolve, this.autoFetchDelay);
+        });
+      }
+    }
+    
+    // Auto-fetch completed or paused
+    if (!this.hasMoreData) {
+      console.log('✅ Auto-fetch completed - all pages loaded');
+      this.stopAutoFetch();
+    }
+  }
+
+  stopAutoFetch() {
+    this.isAutoFetching = false;
+    this.autoFetchPaused = false;
+    
+    // Clear any pending timeout
+    if (this.autoFetchTimeout) {
+      clearTimeout(this.autoFetchTimeout);
+      this.autoFetchTimeout = null;
+    }
+    
+    // Update button icon if available
+    if (this.updateAutoFetchButtonIcon) {
+      this.updateAutoFetchButtonIcon(false);
+      this.autoFetchButton?.classList.remove('active', 'paused');
+    }
+    
+    console.log('⏹️ Auto-fetch stopped');
+  }
+
   updateInfoSectionWithAnticipatedProgress() {
     if (!this.infoSection || !this.virtualScrolling) return;
     
@@ -1951,6 +2103,16 @@ class DivTable {
       refreshButton.title = 'Loading data...';
       
       firstLineContainer.appendChild(refreshButton);
+    }
+    
+    // Add auto-fetch button if enabled (only for virtual scrolling tables)
+    if (this.showAutoFetchButton && this.virtualScrolling) {
+      const autoFetchButton = this.createAutoFetchButton();
+      
+      // During loading, disable auto-fetch button
+      autoFetchButton.disabled = true;
+      
+      firstLineContainer.appendChild(autoFetchButton);
     }
     
     // Only add the container if it has content
@@ -2340,10 +2502,6 @@ class DivTable {
       const nextPageToLoad = this.currentPage + 1;
       const newData = await this.onNextPage(nextPageToLoad, this.pageSize);
       
-      // Set loading to false immediately after getting data but before processing it
-      // This ensures the progress bar doesn't show loading segment when UI updates
-      this.isLoading = false;
-      
       if (newData && Array.isArray(newData) && newData.length > 0) {
         const result = this.appendData(newData);
         
@@ -2369,6 +2527,10 @@ class DivTable {
         // No more data available
         this.hasMoreData = false;
       }
+      
+      // Set loading to false AFTER updating hasMoreData to prevent race conditions
+      // where handleVirtualScroll might trigger another load before hasMoreData is updated
+      this.isLoading = false;
     } catch (error) {
       console.error('❌ Error loading next page:', error);
       this.isLoading = false;

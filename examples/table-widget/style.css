@@ -313,6 +313,60 @@
   transition: transform 0.2s ease;
 }
 
+/* Auto-fetch button in info section */
+.auto-fetch-button {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.auto-fetch-button:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.auto-fetch-button:active {
+  background-color: #e0e0e0;
+}
+
+.auto-fetch-button.active {
+  color: #28a745;
+  background-color: #e8f5e9;
+}
+
+.auto-fetch-button.active:hover {
+  background-color: #c8e6c9;
+}
+
+.auto-fetch-button.paused {
+  color: #ffc107;
+  background-color: #fff8e1;
+}
+
+.auto-fetch-button.paused:hover {
+  background-color: #ffecb3;
+}
+
+.auto-fetch-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auto-fetch-button svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
 .info-selection {
   font-weight: 600;
 }

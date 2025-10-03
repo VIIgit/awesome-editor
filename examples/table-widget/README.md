@@ -7,6 +7,7 @@ A modern table widget built with CSS Grid and Flexbox instead of HTML tables, pr
 - **Modern CSS-based Layout**: Uses CSS Grid and Flexbox for flexible, responsive design
 - **Advanced Query Language**: Monaco Editor integration with intelligent query suggestions
 - **Virtual Scrolling**: Handle large datasets efficiently with pagination support
+- **Auto-Fetch**: Automated pagination with play/pause/resume controls
 - **Grouping & Sorting**: Multi-level grouping and sorting capabilities
 - **Selection Management**: Single and multi-row selection with checkbox support
 - **Loading States**: Configurable loading placeholders and progress indicators
@@ -47,6 +48,8 @@ const divTable = new DivTable(monaco, {
 | `showLoadingPlaceholder` | boolean | `true` | Show loading placeholder when no data |
 | `loadingPlaceholderText` | string | `'...loading'` | Text for loading placeholder |
 | `showRefreshButton` | boolean | `false` | Show refresh button in info section |
+| `showAutoFetchButton` | boolean | `true` | Show auto-fetch button (for virtual scrolling only) |
+| `autoFetchDelay` | number | `500` | Delay in milliseconds between auto-fetch requests |
 
 ### Virtual Scrolling Options
 
@@ -229,7 +232,9 @@ divTable.clearSelection();
 ### Loading States
 
 #### `resetToLoading()`
+
 Reset table to loading state.
+
 ```javascript
 divTable.resetToLoading();
 ```
@@ -250,6 +255,38 @@ Manually control the loading state. When `true`, shows loading placeholder (if e
 divTable.setLoadingState(true);  // Show loading placeholder
 divTable.setLoadingState(false); // Hide loading placeholder
 ```
+
+### Auto-Fetch
+
+The auto-fetch feature allows automated pagination through all available data. When enabled, an auto-fetch button appears in the info section (virtual scrolling mode only).
+
+#### Button States
+
+- **Play** (▶️) - Start auto-fetching from the beginning
+- **Pause** (⏸) - Pause during active fetching (yellow state)
+- **Continue** (▶️) - Resume from paused state (green state)
+- **Stop** - Auto-fetch stops automatically when all data is loaded or when refresh button is clicked
+
+#### Configuration
+
+```javascript
+const divTable = new DivTable(container, columns, {
+  showAutoFetchButton: true,  // Show auto-fetch button (default: true)
+  autoFetchDelay: 500,        // Delay between requests in ms (default: 500)
+  onNextPage: async (state) => {
+    // Your pagination logic
+    return { data: [...], hasMore: boolean };
+  }
+});
+```
+
+#### Behavior
+
+- **Start**: Clicking play initiates auto-fetch from the current position
+- **Pause**: Clicking during active fetch pauses at the current page
+- **Resume**: Clicking while paused continues from where it stopped
+- **Automatic Stop**: Auto-fetch stops when `hasMore` is false
+- **Manual Stop**: Clicking the refresh button stops auto-fetch and resets data
 
 ### Query Editor
 
@@ -323,11 +360,13 @@ The widget supports an advanced query language for filtering with intelligent au
 - `name ends "hn"` - Ends with
 
 ### Logical Operators
+
 - `age > 25 AND city = "New York"` - Both conditions
 - `age < 20 OR age > 65` - Either condition
 - `NOT active` - Negation
 
 ### Examples
+
 ```javascript
 // Simple filtering
 divTable.applyQuery('active = true');
@@ -355,7 +394,12 @@ The widget uses CSS classes that can be customized:
 - `.loading-placeholder` - Virtual scrolling placeholder rows
 
 ### Interactive Elements
+
 - `.refresh-button` - Refresh button in info section
+- `.auto-fetch-button` - Auto-fetch button for automated pagination
+  - `.auto-fetch-button.active` - Active fetching state (green)
+  - `.auto-fetch-button.paused` - Paused state (yellow)
+  - `.auto-fetch-button:hover` - Hover state
 - `.group-toggle` - Group expand/collapse button
 - `.div-table-row.selected` - Selected rows
 - `.div-table-row.focused` - Focused row

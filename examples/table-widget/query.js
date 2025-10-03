@@ -1964,7 +1964,7 @@ function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
       return false;
     }
 
-    // Dispose existing completion provider
+    // Dispose existing providers (both completion AND validation)
     if (existingSetup.disposables) {
       // Original structure with disposables array
       const completionProviderIndex = 2; // Based on setupLanguageSupport disposables order
@@ -1988,23 +1988,23 @@ function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
       }
     }
 
-    // Create new completion provider with updated field names
+    // Create NEW completion provider with updated field names
     const newCompletionProvider = setupCompletionProvider(monaco, { 
       fieldNames: newFieldNames, 
       languageId 
     });
 
-    // Create new validation provider with updated field names
+    // Create NEW validation provider with updated field names
     const newValidationProvider = setupValidation(monaco, { 
       fieldNames: newFieldNames, 
       languageId 
     });
 
-    // Update the stored language setup - maintain consistent structure
+    // Update the stored language setup with new field names and providers
     existingSetup.fieldNames = newFieldNames;
     
     if (existingSetup.disposables) {
-      // Update disposables array
+      // Update disposables array with new providers
       existingSetup.disposables[2] = newCompletionProvider.provider;
       existingSetup.disposables[3] = newValidationProvider;
     } else {
@@ -2017,7 +2017,7 @@ function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
     const models = monaco.editor.getModels();
     models.forEach(model => {
       if (model.getLanguageId() === languageId) {
-        // Trigger validation update by setting a marker and clearing it
+        // Trigger validation update by making a minimal change and reverting
         const currentValue = model.getValue();
         const currentPosition = model.getPositionAt(currentValue.length);
         
@@ -2036,7 +2036,7 @@ function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
 
     return true;
   } catch (error) {
-    console.error('❌ Failed to update query editor field names:', error);
+    console.error('Failed to update field names:', error);
     return false;
   }
 }
