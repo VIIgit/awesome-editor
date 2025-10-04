@@ -139,6 +139,9 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
       return `${order[type] || '9'}`;
     }
     
+    // Convert label to string to handle numeric values
+    const labelStr = String(label);
+    
     // Special ordering for operators
     if (type === 'operator') {
       const operatorOrder = {
@@ -148,10 +151,10 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
         '<': '4',
         'IN': '5'
       };
-      return `${order[type]}${operatorOrder[label] || '9'}${label.toLowerCase()}`;
+      return `${order[type]}${operatorOrder[labelStr] || '9'}${labelStr.toLowerCase()}`;
     }
     
-    return `${order[type]}${label.toLowerCase()}`;
+    return `${order[type]}${labelStr.toLowerCase()}`;
   }
 
   // Operator descriptions
@@ -1498,39 +1501,55 @@ function setupValidation(monaco, { fieldNames, languageId }) {
     monaco.editor.setModelMarkers(model, languageId, markers);
   }
 
-  // Set up model change listener with incremental validation
+  // Helper function to set up validation for a model
+  const setupModelValidation = (model) => {
+    // Initial validation
+    validateQuery(model);
+
+    // Set up change listener with debouncing
+    const changeDisposable = model.onDidChangeContent((e) => {
+      // Clear previous timeout
+      if (validateTimeout) {
+        clearTimeout(validateTimeout);
+      }
+
+      // Get the cursor position from the last change
+      const position = e.changes[e.changes.length - 1].rangeOffset ? {
+        lineNumber: model.getPositionAt(e.changes[e.changes.length - 1].rangeOffset).lineNumber,
+        column: model.getPositionAt(e.changes[e.changes.length - 1].rangeOffset).column
+      } : null;
+
+      // Set new timeout for validation
+      validateTimeout = setTimeout(() => {
+        validateQuery(model, position);
+      }, 300); // 300ms debounce
+    });
+
+    // Clean up when model is disposed
+    model.onWillDispose(() => {
+      if (validateTimeout) {
+        clearTimeout(validateTimeout);
+      }
+      changeDisposable.dispose();
+    });
+    
+    return changeDisposable;
+  };
+
+  // Set up validation for existing models with this language
+  const existingModelDisposables = [];
+  monaco.editor.getModels().forEach(model => {
+    if (model.getLanguageId() === languageId) {
+      const disposable = setupModelValidation(model);
+      existingModelDisposables.push(disposable);
+    }
+  });
+
+  // Set up model change listener for future models
   let validateTimeout = null;
   let disposable = monaco.editor.onDidCreateModel(model => {
     if (model.getLanguageId() === languageId) {
-      // Initial validation
-      validateQuery(model);
-
-      // Set up change listener with debouncing
-      const changeDisposable = model.onDidChangeContent((e) => {
-        // Clear previous timeout
-        if (validateTimeout) {
-          clearTimeout(validateTimeout);
-        }
-
-        // Get the cursor position from the last change
-        const position = e.changes[e.changes.length - 1].rangeOffset ? {
-          lineNumber: model.getPositionAt(e.changes[e.changes.length - 1].rangeOffset).lineNumber,
-          column: model.getPositionAt(e.changes[e.changes.length - 1].rangeOffset).column
-        } : null;
-
-        // Set new timeout for validation
-        validateTimeout = setTimeout(() => {
-          validateQuery(model, position);
-        }, 300); // 300ms debounce
-      });
-
-      // Clean up when model is disposed
-      model.onWillDispose(() => {
-        if (validateTimeout) {
-          clearTimeout(validateTimeout);
-        }
-        changeDisposable.dispose();
-      });
+      setupModelValidation(model);
     }
   });
 
@@ -1541,6 +1560,8 @@ function setupValidation(monaco, { fieldNames, languageId }) {
         clearTimeout(validateTimeout);
       }
       disposable.dispose();
+      // Dispose existing model listeners
+      existingModelDisposables.forEach(d => d.dispose());
       // Clean up the registration tracker
       if (monaco._validationSetup && monaco._validationSetup[languageId]) {
         delete monaco._validationSetup[languageId];
@@ -1988,6 +2009,11 @@ function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
       }
     }
 
+    // Clear validation cache to ensure new provider is created with updated field names
+    if (monaco._validationSetup && monaco._validationSetup[languageId]) {
+      delete monaco._validationSetup[languageId];
+    }
+
     // Create NEW completion provider with updated field names
     const newCompletionProvider = setupCompletionProvider(monaco, { 
       fieldNames: newFieldNames, 
@@ -2017,6 +2043,9 @@ function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
     const models = monaco.editor.getModels();
     models.forEach(model => {
       if (model.getLanguageId() === languageId) {
+        // Clear existing markers first
+        monaco.editor.setModelMarkers(model, languageId, []);
+        
         // Trigger validation update by making a minimal change and reverting
         const currentValue = model.getValue();
         const currentPosition = model.getPositionAt(currentValue.length);
@@ -2031,6 +2060,16 @@ function updateQueryEditorFieldNames(monaco, languageId, newFieldNames) {
           range: new monaco.Range(currentPosition.lineNumber, currentPosition.column, currentPosition.lineNumber, currentPosition.column + 1),
           text: ''
         }], () => null);
+        
+        // Explicitly trigger validation again after a short delay to ensure providers are ready
+        setTimeout(() => {
+          const value = model.getValue();
+          // Create a change event to trigger validation
+          model.pushEditOperations([], [{
+            range: new monaco.Range(1, 1, 1, 1),
+            text: ''
+          }], () => null);
+        }, 50);
       }
     });
 

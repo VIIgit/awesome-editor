@@ -6,7 +6,11 @@ class DivTable {
   constructor(monaco, options) {
     this.monaco = monaco;
     this.options = options;
-    this.data = options.data || [];
+    
+    // Check if data was explicitly provided (even if empty array)
+    const hasExplicitData = options.data !== undefined && options.data !== null;
+    this.data = hasExplicitData ? options.data : [];
+    
     this.columns = options.columns || [];
     this.showCheckboxes = options.showCheckboxes !== false;
     this.multiSelect = options.multiSelect !== false;
@@ -17,6 +21,9 @@ class DivTable {
     this.showLoadingPlaceholder = options.showLoadingPlaceholder !== false;
     this.loadingPlaceholderText = options.loadingPlaceholderText || 'loading';
     this.isLoadingState = this.data.length === 0 && this.showLoadingPlaceholder; // Show loading when no initial data and enabled
+    
+    // Store whether we need to load first page automatically
+    this._shouldLoadFirstPage = !hasExplicitData && typeof options.onNextPage === 'function';
     
     // Refresh button options
     this.showRefreshButton = options.showRefreshButton || false;
@@ -29,7 +36,8 @@ class DivTable {
     // Virtual scrolling options
     this.virtualScrolling = options.virtualScrolling || false;
     this.pageSize = options.pageSize || 100;
-    this.totalRecords = options.totalRecords || this.data.length;
+    // If totalRecords not provided and virtual scrolling is enabled, assume 10x page size for progress bar animation
+    this.totalRecords = options.totalRecords || (this.virtualScrolling ? this.pageSize * 10 : this.data.length);
     this.onNextPage = options.onNextPage || (() => {});
     this.onPreviousPage = options.onPreviousPage || (() => {});
     this.loadingThreshold = options.loadingThreshold || Math.floor(this.pageSize * 0.8); // Default: 80% of page size
@@ -95,6 +103,44 @@ class DivTable {
     
     // Set up keyboard navigation
     this.setupKeyboardNavigation();
+    
+    // Auto-load first page if no data was provided but onNextPage is available
+    // Use setTimeout to ensure the constructor has returned and variable assignment is complete
+    if (this._shouldLoadFirstPage) {
+      setTimeout(() => this.loadFirstPageAutomatically(), 0);
+    } else if (this.virtualScrolling && this.data.length < this.totalRecords && typeof this.onNextPage === 'function') {
+      // If virtual scrolling is enabled with initial data but more data is available,
+      // automatically trigger loading the next page to show progress bar animation
+      setTimeout(() => this.loadNextPage(), 0);
+    }
+  }
+
+  async loadFirstPageAutomatically() {
+    try {
+      // Set loading state before fetching data
+      this.isLoading = true;
+      this.updateInfoSection();
+      
+      const firstPageData = await this.onNextPage(0, this.pageSize);
+      
+      // Clear loading state
+      this.isLoading = false;
+      
+      if (firstPageData && Array.isArray(firstPageData) && firstPageData.length > 0) {
+        this.replaceData(firstPageData);
+      } else {
+        // No data returned
+        this.isLoadingState = false;
+        this.hasMoreData = false;
+        this.render();
+      }
+    } catch (error) {
+      console.error('❌ Error loading first page:', error);
+      this.isLoading = false;
+      this.isLoadingState = false;
+      this.hasMoreData = false;
+      this.render();
+    }
   }
 
   getOrderedColumns() {
@@ -201,12 +247,33 @@ class DivTable {
     
     // Set up Monaco editor for query input with proper field type analysis like smart-table
     const fieldNames = {};
+    
+    // Create a map of column definitions by field for easy lookup
+    const columnMap = new Map();
+    this.columns.forEach(col => {
+      if (col.field) {
+        columnMap.set(col.field, col);
+      }
+    });
+    
     if (this.data.length > 0) {
       const sampleItem = this.data[0];
       Object.keys(sampleItem).forEach(field => {
-        const fieldType = typeof sampleItem[field] === 'boolean' ? 'boolean'
-          : typeof sampleItem[field] === 'number' ? 'number'
-            : 'string';
+        // Only process fields that are defined in columns
+        const col = columnMap.get(field);
+        if (!col) {
+          return; // Skip computed or extra fields not in column definitions
+        }
+        
+        // Use column type if defined, otherwise infer from data
+        let fieldType;
+        if (col.type) {
+          fieldType = col.type;
+        } else {
+          fieldType = typeof sampleItem[field] === 'boolean' ? 'boolean'
+            : typeof sampleItem[field] === 'number' ? 'number'
+              : 'string';
+        }
 
         let fieldValues;
         if (fieldType === 'string') {
@@ -1073,12 +1140,77 @@ class DivTable {
       const headerCell = document.createElement('div');
       headerCell.className = 'div-table-header-cell sortable';
       
-      // Create header content with label and indicators
-      const headerContent = document.createElement('span');
-      headerContent.innerHTML = col.label || col.field;
-      headerCell.appendChild(headerContent);
+      // Left-aligned content wrapper
+      const leftContent = document.createElement('div');
+      leftContent.className = 'header-left-content';
       
-      // Add groupable indicator if column is groupable
+      // Add collapse/expand all toggle if this column is currently grouped
+      if (this.groupByField === col.field) {
+        const groups = this.groupData(this.filteredData);
+        const groupCount = groups.length;
+        const columnLabel = col.label || col.field;
+        
+        // Collapse/expand all toggle button
+        const toggleAllBtn = document.createElement('span');
+        toggleAllBtn.className = 'group-toggle-all';
+        
+        // Check if all groups are collapsed
+        const allCollapsed = groups.every(g => this.collapsedGroups.has(g.key));
+        if (allCollapsed) {
+          toggleAllBtn.classList.add('collapsed');
+        }
+        toggleAllBtn.textContent = '❯';
+        toggleAllBtn.title = allCollapsed ? 'Expand all groups' : 'Collapse all groups';
+        
+        toggleAllBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          
+          if (allCollapsed) {
+            // Expand all groups
+            this.collapsedGroups.clear();
+          } else {
+            // Collapse all groups
+            groups.forEach(group => {
+              this.collapsedGroups.add(group.key);
+            });
+          }
+          
+          this.render();
+        });
+        
+        leftContent.appendChild(toggleAllBtn);
+        
+        // Column label
+        const labelSpan = document.createElement('span');
+        labelSpan.innerHTML = columnLabel;
+        labelSpan.style.fontWeight = 'bold';
+        leftContent.appendChild(labelSpan);
+        
+        // Count
+        const countSpan = document.createElement('span');
+        countSpan.className = 'group-count';
+        countSpan.innerHTML = `&nbsp;(${groupCount})`;
+        countSpan.style.opacity = '0.8';
+        countSpan.style.fontSize = '0.85em';
+        countSpan.style.fontWeight = 'normal';
+        countSpan.title = `${groupCount} distinct value${groupCount === 1 ? '' : 's'} in ${columnLabel}`;
+        leftContent.appendChild(countSpan);
+      } else {
+        // Regular column label
+        const labelSpan = document.createElement('span');
+        labelSpan.innerHTML = col.label || col.field;
+        labelSpan.style.fontWeight = 'bold';
+        leftContent.appendChild(labelSpan);
+      }
+      
+      headerCell.appendChild(leftContent);
+      
+      // Right-aligned indicators wrapper
+      const rightContent = document.createElement('div');
+      rightContent.className = 'header-right-content';
+      
+      // Add groupable indicator if column is groupable (right-aligned)
       if (col.groupable !== false && !col.hidden) {
         const groupIndicator = document.createElement('span');
         groupIndicator.className = 'group-indicator';
@@ -1087,6 +1219,7 @@ class DivTable {
         }
         groupIndicator.textContent = this.groupByField === col.field ? '☴' : '☷';
         groupIndicator.style.cursor = 'pointer';
+        groupIndicator.style.fontSize = '1em';
         const columnTitle = col.label || col.field;
         groupIndicator.title = this.groupByField === col.field ? `Grouped by ${columnTitle} (click to ungroup)` : `Click to group by ${columnTitle}`;
         
@@ -1102,16 +1235,24 @@ class DivTable {
           }
         });
         
-        headerCell.appendChild(groupIndicator);
+        rightContent.appendChild(groupIndicator);
       }
       
+      headerCell.appendChild(rightContent);
+      
+      // Add sort class for CSS-based indicator
       if (this.sortColumn === col.field) {
         headerCell.classList.add('sorted', this.sortDirection);
       }
 
       headerCell.addEventListener('click', (e) => {
-        // Only sort if not clicking on group indicator
-        if (!e.target.classList.contains('group-indicator')) {
+        // Only sort if not clicking on group indicator, toggle all, or their parent containers
+        const isGroupControl = e.target.classList.contains('group-indicator') || 
+                              e.target.classList.contains('group-toggle-all') ||
+                              e.target.closest('.group-toggle-all') ||
+                              e.target.closest('.group-indicator');
+        
+        if (!isGroupControl) {
           this.sort(col.field);
         }
       });
@@ -1487,9 +1628,18 @@ class DivTable {
     const cell = document.createElement('div');
     cell.className = 'div-table-cell';
     cell.style.gridColumn = this.showCheckboxes ? '2 / -1' : '1 / -1'; // Span from after checkbox to end
+    cell.style.display = 'flex';
+    cell.style.alignItems = 'center';
+    cell.style.gap = '8px';
     
+    // Individual group toggle button
     const toggleBtn = document.createElement('span');
     toggleBtn.className = 'group-toggle';
+    if (this.collapsedGroups.has(group.key)) {
+      toggleBtn.classList.add('collapsed');
+    }
+    toggleBtn.textContent = '❯';
+    toggleBtn.title = this.collapsedGroups.has(group.key) ? 'Expand group' : 'Collapse group';
     
     const groupColumn = this.columns.find(col => col.field === this.groupByField);
     const groupLabel = groupColumn?.label || this.groupByField;
@@ -1509,14 +1659,30 @@ class DivTable {
     
     // Create a span for the group text that can handle HTML
     const textSpan = document.createElement('span');
-    textSpan.innerHTML = `${renderedGroupValue} (${group.items.length} items)`;
+    textSpan.style.fontWeight = '500';
+    if (typeof renderedGroupValue === 'string') {
+      textSpan.innerHTML = renderedGroupValue;
+    } else {
+      textSpan.textContent = renderedGroupValue;
+    }
     cell.appendChild(textSpan);
+    
+    // Add styled count span
+    const countSpan = document.createElement('span');
+    countSpan.className = 'group-item-count';
+    countSpan.innerHTML = `(${group.items.length})`;
+    countSpan.style.opacity = '0.8';
+    countSpan.style.fontSize = '0.85em';
+    countSpan.style.fontWeight = 'normal';
+    countSpan.title = `${group.items.length} item${group.items.length === 1 ? '' : 's'} in this group`;
+    cell.appendChild(countSpan);
     
     groupRow.appendChild(cell);
 
     // Group toggle click handler - only handles expand/collapse
     toggleBtn.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevent event bubbling to group row
+      e.stopPropagation();
+      e.preventDefault();
       
       if (this.collapsedGroups.has(group.key)) {
         this.collapsedGroups.delete(group.key);
@@ -1667,6 +1833,16 @@ class DivTable {
       firstLineContainer.appendChild(selectionLine);
     }
     
+    // Add auto-fetch button if enabled (only for virtual scrolling tables with more data to fetch)
+    if (this.showAutoFetchButton && this.virtualScrolling && (this.hasMoreData || this.isAutoFetching)) {
+      const autoFetchButton = this.createAutoFetchButton();
+      
+      // Button is always enabled if shown (either actively fetching or ready to fetch more)
+      autoFetchButton.disabled = false;
+      
+      firstLineContainer.appendChild(autoFetchButton);
+    }
+    
     // Add refresh button if enabled - always in the first line container
     if (this.showRefreshButton) {
       const refreshButton = this.createRefreshButton();
@@ -1684,20 +1860,6 @@ class DivTable {
       }
       
       firstLineContainer.appendChild(refreshButton);
-    }
-    
-    // Add auto-fetch button if enabled (only for virtual scrolling tables)
-    if (this.showAutoFetchButton && this.virtualScrolling) {
-      const autoFetchButton = this.createAutoFetchButton();
-      
-      // Disable auto-fetch button when loading or no more data
-      if (this.isLoading || this.isLoadingState || (!this.hasMoreData && !this.isAutoFetching)) {
-        autoFetchButton.disabled = true;
-      } else {
-        autoFetchButton.disabled = false;
-      }
-      
-      firstLineContainer.appendChild(autoFetchButton);
     }
     
     // Only add the container if it has content
@@ -1773,62 +1935,69 @@ class DivTable {
       const percentageBased = Math.ceil(currentTotal * 0.1); // 10% of current total
       const pageBasedBatch = this.pageSize || 50; // Use configured page size or default 50
       const estimatedBatchSize = Math.max(pageBasedBatch, Math.min(percentageBased, 100)); // At least pageSize, max 100
-      const loadingSegmentEnd = this.isLoading ? Math.min(currentTotal, loaded + estimatedBatchSize) : loaded;
+      // Show loading segment when there's more data to load (not just when actively loading)
+      const loadingSegmentEnd = loaded < currentTotal ? Math.min(currentTotal, loaded + estimatedBatchSize) : loaded;
       
-      // When both filtered and loading, show filtered state with loading indication
-      if (showLoadingProgress && showFilterProgress && filtered < loaded) {
-        // Filtered + Loading state
-        const filteredPercentage = (filtered / currentTotal) * 100;
-        const loadedPercentage = (loaded / currentTotal) * 100;
-        const loadingEndPercentage = (loadingSegmentEnd / currentTotal) * 100;
-        
-        // Solid loaded segment (up to filtered amount)
-        const loadedBar = document.createElement('div');
-        loadedBar.className = 'progress-segment loaded-segment';
-        loadedBar.style.width = `${filteredPercentage}%`;
-        
-        // Loading segment (if actively loading beyond filtered data)
-        if (this.isLoading && loadingSegmentEnd > filtered) {
-          const loadingBar = document.createElement('div');
-          loadingBar.className = 'progress-segment loading-segment';
-          loadingBar.style.left = `${filteredPercentage}%`;
-          loadingBar.style.width = `${loadingEndPercentage - filteredPercentage}%`;
-          progressContainer.appendChild(loadingBar);
+      // Calculate percentages
+      const filteredPercentage = (filtered / currentTotal) * 100;
+      const loadedPercentage = (loaded / currentTotal) * 100;
+      const loadingEndPercentage = (loadingSegmentEnd / currentTotal) * 100;
+      
+      const hasFilter = filtered < loaded;
+      
+      // When there's a filter active, show filtered (red) + loaded-not-filtered (gray)
+      if (hasFilter) {
+        // Segment 1: Filtered records (red, opacity 1)
+        if (filtered > 0) {
+          const filteredBar = document.createElement('div');
+          filteredBar.className = 'progress-segment filtered-segment';
+          filteredBar.style.width = `${filteredPercentage}%`;
+          filteredBar.style.opacity = '1';
+          progressContainer.appendChild(filteredBar);
         }
         
-        progressContainer.appendChild(loadedBar);
-        progressContainer.setAttribute('data-state', 'filtered-loading');
-      } else if (showLoadingProgress) {
-        // Loading state: show loaded (solid) + loading (shimmer) segments
-        const loadedPercentage = (loaded / currentTotal) * 100;
-        const loadingEndPercentage = (loadingSegmentEnd / currentTotal) * 100;
-        
-        // Solid loaded segment
+        // Segment 2: Loaded but filtered out (gray, opacity 0.8)
+        if (loaded > filtered) {
+          const loadedNotFilteredBar = document.createElement('div');
+          loadedNotFilteredBar.className = 'progress-segment loaded-segment';
+          loadedNotFilteredBar.style.left = `${filteredPercentage}%`;
+          loadedNotFilteredBar.style.width = `${loadedPercentage - filteredPercentage}%`;
+          loadedNotFilteredBar.style.opacity = '0.8';
+          progressContainer.appendChild(loadedNotFilteredBar);
+        }
+      } else {
+        // No filter: just show all loaded data as loaded-segment (gray, opacity 1)
         if (loaded > 0) {
           const loadedBar = document.createElement('div');
           loadedBar.className = 'progress-segment loaded-segment';
           loadedBar.style.width = `${loadedPercentage}%`;
+          loadedBar.style.opacity = '1';
           progressContainer.appendChild(loadedBar);
         }
-        
-        // Loading segment with shimmer (only when actively loading)
-        if (this.isLoading && loadingSegmentEnd > loaded) {
-          const loadingBar = document.createElement('div');
-          loadingBar.className = 'progress-segment loading-segment';
-          loadingBar.style.left = `${loadedPercentage}%`;
-          loadingBar.style.width = `${loadingEndPercentage - loadedPercentage}%`;
-          progressContainer.appendChild(loadingBar);
-        }
-        
-        progressContainer.setAttribute('data-state', 'sequential-loading');
-      } else if (showFilterProgress) {
-        // Filtered only
-        const percentage = (filtered / currentTotal) * 100;
-        const progressBar = document.createElement('div');
-        progressBar.className = 'progress-segment loaded-segment';
-        progressBar.style.width = `${percentage}%`;
-        progressContainer.appendChild(progressBar);
+      }
+      
+      // Segment 3: Loading next page (shimmer effect)
+      // Only show when actively loading or auto-fetching (not paused)
+      const shouldShowLoadingSegment = this.hasMoreData && 
+                                       (this.isLoading || (this.isAutoFetching && !this.autoFetchPaused)) &&
+                                       loaded < currentTotal && 
+                                       loadingSegmentEnd > loaded;
+      
+      if (shouldShowLoadingSegment) {
+        const loadingBar = document.createElement('div');
+        loadingBar.className = 'progress-segment loading-segment';
+        loadingBar.style.left = `${loadedPercentage}%`;
+        loadingBar.style.width = `${loadingEndPercentage - loadedPercentage}%`;
+        progressContainer.appendChild(loadingBar);
+      }
+      
+      // Set state for CSS styling
+      if (hasFilter && showLoadingProgress) {
+        progressContainer.setAttribute('data-state', 'filtered-loading');
+      } else if (hasFilter) {
         progressContainer.setAttribute('data-state', 'filtered');
+      } else if (showLoadingProgress) {
+        progressContainer.setAttribute('data-state', 'sequential-loading');
       }
       
       progressLine.appendChild(progressContainer);
@@ -1881,7 +2050,7 @@ class DivTable {
 
           // Reset pagination state
           this.currentPage = 0;
-          this.isLoading = false;
+          this.isLoading = true; // Set loading state before fetching
           this.hasMoreData = true;
           
           
@@ -1893,6 +2062,9 @@ class DivTable {
           
           const firstPageToLoad = 0; // Start with page 0
           const firstPageData = await this.onNextPage(firstPageToLoad, this.pageSize);
+          
+          // Clear loading state
+          this.isLoading = false;
           
           if (firstPageData && Array.isArray(firstPageData) && firstPageData.length > 0) {
             this.replaceData(firstPageData);
@@ -1949,7 +2121,7 @@ class DivTable {
     // Add play/pause icon (using SVG)
     const updateButtonIcon = (isPaused) => {
       if (this.isAutoFetching && !isPaused) {
-        // Show pause icon when auto-fetching
+        // Show pause icon when actively auto-fetching
         autoFetchButton.innerHTML = `
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="6" y="4" width="4" height="16"></rect>
@@ -1958,6 +2130,7 @@ class DivTable {
         `;
         autoFetchButton.title = 'Pause auto-fetch';
         autoFetchButton.classList.add('active');
+        autoFetchButton.classList.remove('paused');
       } else {
         // Show play icon when not auto-fetching or paused
         autoFetchButton.innerHTML = `
@@ -1965,17 +2138,19 @@ class DivTable {
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
           </svg>
         `;
-        autoFetchButton.title = isPaused ? 'Resume auto-fetch' : 'Auto-fetch all pages';
+        autoFetchButton.classList.remove('active');
         if (isPaused) {
+          autoFetchButton.title = 'Resume auto-fetch (waiting for current page to complete)';
           autoFetchButton.classList.add('paused');
         } else {
+          autoFetchButton.title = 'Auto-fetch all pages';
           autoFetchButton.classList.remove('paused');
         }
       }
     };
     
-    // Initial icon
-    updateButtonIcon(false);
+    // Initial icon - set based on current state
+    updateButtonIcon(this.autoFetchPaused);
     
     // Add click handler
     autoFetchButton.addEventListener('click', async (e) => {
@@ -2025,21 +2200,34 @@ class DivTable {
 
   async continueAutoFetch() {
     while (this.hasMoreData && this.isAutoFetching && !this.autoFetchPaused) {
-      // Load next page
+      // Load next page (this will complete even if user pauses during the load)
       await this.loadNextPage();
       
+      // Check if we should continue after the page completes
+      // User may have paused during loadNextPage, so check again before scheduling delay
+      if (!this.hasMoreData || !this.isAutoFetching || this.autoFetchPaused) {
+        break;
+      }
+      
       // Wait for the specified delay before fetching the next page
-      if (this.hasMoreData && !this.autoFetchPaused) {
-        await new Promise(resolve => {
-          this.autoFetchTimeout = setTimeout(resolve, this.autoFetchDelay);
-        });
+      await new Promise(resolve => {
+        this.autoFetchTimeout = setTimeout(resolve, this.autoFetchDelay);
+      });
+      
+      // Check again after delay - user may have paused during the delay period
+      if (this.autoFetchPaused) {
+        break;
       }
     }
     
     // Auto-fetch completed or paused
     if (!this.hasMoreData) {
-      console.log('✅ Auto-fetch completed - all pages loaded');
       this.stopAutoFetch();
+    } else if (this.autoFetchPaused) {
+      if (this.updateAutoFetchButtonIcon) {
+        this.updateAutoFetchButtonIcon(true); // isPaused = true
+      }
+      this.updateInfoSection();
     }
   }
 
@@ -2059,7 +2247,7 @@ class DivTable {
       this.autoFetchButton?.classList.remove('active', 'paused');
     }
     
-    console.log('⏹️ Auto-fetch stopped');
+    this.updateInfoSection();
   }
 
   updateInfoSectionWithAnticipatedProgress() {
@@ -2093,6 +2281,16 @@ class DivTable {
       firstLineContainer.appendChild(selectionLine);
     }
     
+    // Add auto-fetch button if enabled (only for virtual scrolling tables with more data to fetch)
+    if (this.showAutoFetchButton && this.virtualScrolling && (this.hasMoreData || this.isAutoFetching)) {
+      const autoFetchButton = this.createAutoFetchButton();
+      
+      // Disable button if paused (waiting for current page to complete)
+      autoFetchButton.disabled = this.autoFetchPaused;
+      
+      firstLineContainer.appendChild(autoFetchButton);
+    }
+    
     // Add refresh button if enabled - show loading state during anticipated progress
     if (this.showRefreshButton) {
       const refreshButton = this.createRefreshButton();
@@ -2103,16 +2301,6 @@ class DivTable {
       refreshButton.title = 'Loading data...';
       
       firstLineContainer.appendChild(refreshButton);
-    }
-    
-    // Add auto-fetch button if enabled (only for virtual scrolling tables)
-    if (this.showAutoFetchButton && this.virtualScrolling) {
-      const autoFetchButton = this.createAutoFetchButton();
-      
-      // During loading, disable auto-fetch button
-      autoFetchButton.disabled = true;
-      
-      firstLineContainer.appendChild(autoFetchButton);
     }
     
     // Only add the container if it has content
@@ -2174,7 +2362,6 @@ class DivTable {
         const filteredIds = this.queryEngine.filterObjects(query);
         this.filteredData = this.data.filter(obj => filteredIds.includes(obj[this.primaryKeyField]));
       } catch (error) {
-        console.error('Query error:', error);
         this.filteredData = [...this.data];
       }
     }
@@ -2330,18 +2517,32 @@ class DivTable {
     // Get existing field names structure (defined at construction time)
     const currentFieldNames = this.queryEditor.editor.getFieldNames() || {};
     
+    // Create a set of valid column fields (exclude computed fields like 'technical')
+    const validFields = new Set(this.columns.filter(col => col.field).map(col => col.field));
+    
+    // Only keep fields that are in our column definitions
+    const filteredCurrentFieldNames = {};
+    Object.keys(currentFieldNames).forEach(field => {
+      if (validFields.has(field)) {
+        filteredCurrentFieldNames[field] = currentFieldNames[field];
+      }
+    });
+    
     // Only update VALUES for existing fields, don't add new field definitions
-    const updatedFieldNames = { ...currentFieldNames };
+    const updatedFieldNames = { ...filteredCurrentFieldNames };
     
     if (this.data.length > 0) {
-      const sampleItem = this.data[0];
-      Object.keys(sampleItem).forEach(field => {
-        // Only update if this field already exists in the schema
-        if (currentFieldNames[field]) {
-          const existingField = currentFieldNames[field];
+      // Only iterate over fields defined in columns, not all data properties
+      this.columns.forEach(col => {
+        const field = col.field;
+        if (!field) return; // Skip columns without field definitions
+        
+        // Only update if this field already exists in the filtered schema
+        if (filteredCurrentFieldNames[field]) {
+          const existingField = filteredCurrentFieldNames[field];
           
           // For string fields, merge new values with existing ones
-          if (existingField.type === 'string' && existingField.values) {
+          if (existingField.type === 'string' && existingField.values !== undefined) {
             const uniqueValues = [...new Set(this.data.map(item => item[field]))];
             const definedValues = uniqueValues.filter(value =>
               value !== null && value !== undefined && value !== ''
@@ -2368,7 +2569,7 @@ class DivTable {
     }
 
     // Compare with existing field names to see if update is needed
-    const needsUpdate = this._shouldUpdateFieldNames(currentFieldNames, updatedFieldNames);
+    const needsUpdate = this._shouldUpdateFieldNames(filteredCurrentFieldNames, updatedFieldNames);
     
     if (needsUpdate) {
       // Use dynamic update approach only - no fallback to recreation
@@ -2489,21 +2690,22 @@ class DivTable {
     
     this.isLoading = true;
     
-    // Show loading placeholder rows for the next page
+    // Step 1: Update InfoSection with loading state and show placeholders
     this.showLoadingPlaceholders();
-    
     this.updateInfoSectionWithAnticipatedProgress();
     
-    // Start progress bar animation
-    this.startProgressBarAnimation();
-    
     try {
-      // Simple pagination: just increment currentPage and request next page
+      // Step 2: Trigger onNextPage
       const nextPageToLoad = this.currentPage + 1;
       const newData = await this.onNextPage(nextPageToLoad, this.pageSize);
       
+      // Step 3: Stop loading status BEFORE appending data
+      this.isLoading = false;
+      this.hideLoadingPlaceholders();
+      
+      // Step 4: Append data (without triggering updateInfoSection inside)
       if (newData && Array.isArray(newData) && newData.length > 0) {
-        const result = this.appendData(newData);
+        const result = this.appendData(newData, true); // Pass skipInfoUpdate flag
         
         // Only increment page if we actually processed some data
         if (result.added > 0 || result.updated > 0) {
@@ -2527,19 +2729,14 @@ class DivTable {
         // No more data available
         this.hasMoreData = false;
       }
-      
-      // Set loading to false AFTER updating hasMoreData to prevent race conditions
-      // where handleVirtualScroll might trigger another load before hasMoreData is updated
-      this.isLoading = false;
     } catch (error) {
       console.error('❌ Error loading next page:', error);
       this.isLoading = false;
+      this.hideLoadingPlaceholders();
       this.showErrorIndicator();
     } finally {
-      this.isLoading = false;
-      this.hideLoadingPlaceholders();
-      this.stopProgressBarAnimation();
-      this.clearRefreshButtonLoadingState();
+      // Step 5: Always update infoSection to reflect final state (success or error)
+      this.updateInfoSection();
     }
   }
 
@@ -2660,21 +2857,6 @@ class DivTable {
     return row;
   }
 
-  startProgressBarAnimation() {
-    // Find all progress bars and add loading class for animation
-    const progressBars = this.infoSection.querySelectorAll('.loading-progress-bar');
-    progressBars.forEach(bar => {
-      bar.classList.add('loading');
-    });
-  }
-
-  stopProgressBarAnimation() {
-    // Find all progress bars and remove loading class to stop animation
-    const progressBars = this.infoSection.querySelectorAll('.loading-progress-bar');
-    progressBars.forEach(bar => {
-      bar.classList.remove('loading');
-    });
-  }
 
   clearRefreshButtonLoadingState() {
     // Find refresh button and clear loading state
@@ -2769,7 +2951,7 @@ class DivTable {
     this.render();
   }
 
-  appendData(newData) {
+  appendData(newData, skipInfoUpdate = false) {
     if (!newData || !Array.isArray(newData)) {
       console.warn('appendData requires a valid array');
       return { added: 0, updated: 0, skipped: 0, invalid: [] };
@@ -2811,7 +2993,6 @@ class DivTable {
     
     if (addedCount > 0 || updatedCount > 0) {
       this.isLoadingState = false;
-      this.clearRefreshButtonLoadingState();
       
       // Update the query engine with new/updated data
       this.queryEngine.setObjects(this.data);
@@ -2827,9 +3008,15 @@ class DivTable {
         this.applyQuery(this.currentQuery);
       }
       
-      // Update info section and re-render
-      this.updateInfoSection();
-      this.render();
+      // Only update info section and re-render if not skipped
+      // (loadNextPage will handle this after setting loading state correctly)
+      if (!skipInfoUpdate) {
+        this.updateInfoSection();
+        this.render();
+      } else {
+        // Still need to render the data, just skip the info section update
+        this.render();
+      }
     }
     
     return { 
@@ -2901,6 +3088,11 @@ class DivTable {
     // Reset pagination to first page (zero-indexed)
     this.currentPage = 0;
     this.startId = 1;
+    
+    // Update hasMoreData flag based on whether we have less data than totalRecords
+    if (this.virtualScrolling && this.totalRecords) {
+      this.hasMoreData = validRecords.length < this.totalRecords;
+    }
     
     // Update info display and re-render
     this.updateInfoSection();

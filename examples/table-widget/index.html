@@ -4,7 +4,10 @@
 <head>
   <meta charset="UTF-8">
   <title>DivTable Widget Demo</title>
-  <link rel="stylesheet" href="style.css">
+  <!-- DivTable Widget Component Styles -->
+  <link rel="stylesheet" href="div-table.css">
+  <!-- Demo Page Layout Styles -->
+  <link rel="stylesheet" href="demo.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
 </head>
 
@@ -275,7 +278,7 @@
       simulateDataFetch(0, 100).then(initialData => {
         const virtualScrollingTable = new DivTable(monaco, {
           tableWidgetElement: divTable3,
-          data: initialData,
+          data: null, //initialData,
           columns: [
             {
               field: 'technical',
@@ -298,6 +301,7 @@
             {
               field: 'age',
               label: 'Age',
+              type: 'number',
               render: (value) => value ? `${value} years` : '',
               responsive: { priority: 'medium', size: 'fixed-medium', hideSmall: true },
               groupable: true

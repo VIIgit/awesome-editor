@@ -1,146 +1,7 @@
-/* DivTable Widget - Modern CSS Grid/Flexbox Based Table */
-
-
-/* Container */
-.container {
-  max-width: 100vw;
-  width: 100%;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-
-.container h2 {
-  margin-top: 40px;
-  margin-bottom: 16px;
-  color: #333;
-  font-size: 1.5rem;
-}
-
-.container h2:first-of-type {
-  margin-top: 20px;
-}
-
-.details-panel h3 {
-  margin: 0 0 15px 0;
-  color: #333;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.details-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.details-content.empty {
-  color: #666;
-  font-style: italic;
-  text-align: center;
-  padding: 20px;
-}
-
-.detail-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.detail-item:last-child {
-  border-bottom: none;
-}
-
-.detail-label {
-  font-weight: 600;
-  color: #555;
-  min-width: 100px;
-  flex-shrink: 0;
-}
-
-.detail-value {
-  color: #333;
-  text-align: right;
-  word-break: break-word;
-}
-
-/* Responsive table layout styles */
-.table-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  margin-bottom: 32px;
-}
-
-@media (min-width: 1300px) {
-  .table-layout {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-  
-  .table-section {
-    flex: 1;
-    min-width: 0; /* Allows flex item to shrink below content size */
-  }
-  
-  .details-section {
-    flex: 0 0 300px; /* Fixed width on larger screens */
-    margin-left: 20px;
-  }
-}
-
-/* Details panel styling */
-.details-panel {
-  background: white;
-  border-radius: 3px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-  height: fit-content;
-}
-
-.details-panel h3 {
-  margin: 0 0 16px 0;
-  color: #333;
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.details-content {
-  color: #666;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.details-content.empty {
-  font-style: italic;
-  color: #999;
-}
-
-.detail-item {
-  margin-bottom: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f1f3f4;
-}
-
-.detail-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.detail-label {
-  font-weight: 600;
-  color: #333;
-  display: block;
-  margin-bottom: 4px;
-}
-
-.detail-value {
-  color: #666;
-}
+/**
+ * DivTable Widget Component Styles
+ * All styles for the .div-table-widget component and its children
+ */
 
 /* Table widget container */
 .div-table-widget {
@@ -216,14 +77,14 @@
   cursor: pointer;
   font-size: 14px;
   color: #495057;
-  appearance: none; /* Remove default browser styling */
+  appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 8px center;
   background-repeat: no-repeat;
   background-size: 16px;
-  padding-right: 32px; /* Make room for the arrow */
+  padding-right: 32px;
 }
 
 .div-table-toolbar select:hover {
@@ -420,13 +281,18 @@
   transition: width 0.3s ease, left 0.3s ease;
 }
 
+.filtered-segment {
+  background: #dc3545;
+  z-index: 3;
+}
+
 .loaded-segment {
   background: #495057;
   z-index: 2;
 }
 
 .loading-segment {
-  background: #6c757d;
+  background: #007bff;
   z-index: 1;
 }
 
@@ -577,30 +443,44 @@
   transition: background-color 0.2s ease;
 }
 
+.header-left-content {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 0 1 auto;
+}
+
+.header-right-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .div-table-header-cell:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
-.div-table-header-cell.sortable::after {
-  content: '↕';
-  margin-left: 8px;
+.header-right-content::after {
+  content: '⇅';
+  margin-left: 4px;
   opacity: 0.5;
   font-size: 12px;
 }
 
-.div-table-header-cell.sorted.asc::after {
-  content: '▲';
+.div-table-header-cell.sorted.asc .header-right-content::after {
+  content: '⬆︎';
   opacity: 1;
 }
 
-.div-table-header-cell.sorted.desc::after {
-  content: '▼';
+.div-table-header-cell.sorted.desc .header-right-content::after {
+  content: '⬇︎';
   opacity: 1;
 }
 
 /* Group indicator styling */
 .group-indicator {
-  margin-left: auto;
   font-size: 12px;
   opacity: 0.5;
   transition: opacity 0.2s ease;
@@ -662,18 +542,18 @@ input[type="checkbox"]:indeterminate::after {
 }
 
 .div-table-row.focused {
-  background-color: white; /* Same white background as regular rows */
-  box-shadow: inset 3px 0 0 #007bff; /* Same left border as ungrouped rows */
+  background-color: white;
+  box-shadow: inset 3px 0 0 #007bff;
 }
 
 .div-table-row.focused:hover {
-  background-color: rgba(0, 123, 255, 0.05) !important; /* Same hover as regular rows */
+  background-color: rgba(0, 123, 255, 0.05) !important;
 }
 
 /* Ensure group headers also get proper focus styling */
 .div-table-row.group-header.focused {
-  background-color: white !important; /* Same white background as regular rows */
-  box-shadow: inset 3px 0 0 #007bff !important; /* Same left border as ungrouped rows */
+  background-color: white !important;
+  box-shadow: inset 3px 0 0 #007bff !important;
 }
 
 .div-table-row.group-header.focused:hover {
@@ -682,19 +562,25 @@ input[type="checkbox"]:indeterminate::after {
 
 /* Group header styling */
 .div-table-row.group-header {
-  background: white; /* Same white background as regular rows */
-  font-weight: normal; /* Regular font weight, not bold */
+  background: white;
+  font-weight: normal;
   color: #495057;
-  border-bottom: 1px solid #f1f3f4; /* Same border as regular rows */
+  border-bottom: 1px solid #f1f3f4;
   position: sticky;
-  top: 0px; /* Position below the table header (header height = 48px) */
-  z-index: 9; /* Just below the table header */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Add subtle shadow to indicate stickiness */
+  top: 0px;
+  z-index: 9;
+  box-shadow: none;
+  isolation: isolate;
+}
+
+/* Add shadow only to the first group header (when sticky) */
+.div-table-row.group-header:first-of-type {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Make only the group name text bold */
 .div-table-row.group-header .div-table-cell span {
-  font-weight: 600; /* Bold for the group name text */
+  font-weight: 600;
 }
 
 /* Group header checkbox styling */
@@ -715,31 +601,30 @@ input[type="checkbox"]:indeterminate::after {
   background-color: #007bff;
 }
 
-.div-table-row.group-header .group-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-right: 8px;
-  font-size: 9px;
+/* Group toggle button styling */
+.group-toggle,
+.group-toggle-all {
+  display: inline-block;
   cursor: pointer;
-  transition: all 0.2s ease;
+  font-size: 0.9em;
+  transition: transform 0.2s ease;
+  transform: rotate(90deg);
 }
 
-.div-table-row.group-header .group-toggle:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: inherit;
-  border-color: #ccc;
-  border-radius: 4px;
+.group-toggle.collapsed,
+.group-toggle-all.collapsed {
+  transform: rotate(0deg);
 }
 
-.div-table-row.group-header.collapsed .group-toggle::after {
-  content: '➕';
+.group-toggle-all {
+  font-size: 1em;
+  font-weight: bold;
+  margin-right: 6px;
 }
 
-.div-table-row.group-header:not(.collapsed) .group-toggle::after {
-  content: '➖';
+.group-toggle:hover,
+.group-toggle-all:hover {
+  opacity: 0.7;
 }
 
 /* Grouped column styling */
@@ -803,10 +688,6 @@ input[type="checkbox"]:indeterminate::after {
 
 /* Hide columns on mobile */
 @media (max-width: 768px) {
-  .container {
-    padding: 10px;
-  }
-
   .div-table-toolbar {
     flex-direction: column;
     gap: 8px;
@@ -815,6 +696,7 @@ input[type="checkbox"]:indeterminate::after {
 
   .query-inputfield {
     width: 100%;
+    max-width: 100%;
   }
 
   .div-table-cell.hidden-mobile,
@@ -928,12 +810,6 @@ input[type="checkbox"]:indeterminate::after {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
-}
-
-/* Headings */
-h1 {
-  margin-bottom: 1rem;
-  color: #2c3e50;
 }
 
 /* Virtual Scrolling Indicators */

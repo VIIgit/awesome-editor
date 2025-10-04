@@ -16,10 +16,12 @@ A modern table widget built with CSS Grid and Flexbox instead of HTML tables, pr
 
 ## Basic Usage
 
+### With Pre-loaded Data
+
 ```javascript
 const divTable = new DivTable(monaco, {
   tableWidgetElement: document.getElementById('table-container'),
-  data: myData,
+  data: myData,  // Pre-loaded data array
   columns: columnDefinitions,
   showCheckboxes: true,
   multiSelect: true,
@@ -29,6 +31,31 @@ const divTable = new DivTable(monaco, {
 });
 ```
 
+### With Auto-loading (Virtual Scrolling)
+
+When no `data` is provided, the table automatically loads the first page using `onNextPage`:
+
+```javascript
+const divTable = new DivTable(monaco, {
+  tableWidgetElement: document.getElementById('table-container'),
+  // No data property - will auto-load first page
+  columns: columnDefinitions,
+  virtualScrolling: true,
+  pageSize: 100,
+  totalRecords: 10000,
+  onNextPage: async (page, pageSize) => {
+    const response = await fetch(`/api/data?page=${page}&size=${pageSize}`);
+    return await response.json();
+  }
+});
+```
+
+**Data Loading Behavior:**
+
+- **No `data` property** (or `data: null`): Automatically loads first page via `onNextPage`
+- **`data: []`**: Assumes first page is already loaded (empty dataset)
+- **`data: [...]`**: Uses provided data (first page pre-loaded)
+
 ## Configuration Options
 
 ### Core Options
@@ -36,7 +63,7 @@ const divTable = new DivTable(monaco, {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `tableWidgetElement` | HTMLElement | **required** | Container element for the table |
-| `data` | Array | `[]` | Initial data array |
+| `data` | Array | `undefined` | Initial data array. If not provided (or `null`), first page is auto-loaded via `onNextPage`. If empty array `[]`, assumes first page is pre-loaded. |
 | `columns` | Array | `[]` | Column definitions |
 | `showCheckboxes` | boolean | `true` | Show selection checkboxes |
 | `multiSelect` | boolean | `true` | Allow multiple row selection |
@@ -101,6 +128,7 @@ const columns = [
 | `render` | function | `null` | Custom render function: `(value, row) => string` |
 
 **HTML Content Support:**
+
 - Column labels (`label` property) support HTML content
 - Cell values support HTML content directly from data (no render function needed)
 - Loading placeholder text supports HTML content
@@ -212,19 +240,25 @@ divTable.clearGrouping();
 ### Selection Management
 
 #### `getSelectedRows()`
+
 Get currently selected rows.
+
 ```javascript
 const selected = divTable.getSelectedRows();
 ```
 
 #### `selectAll()`
+
 Select all visible rows.
+
 ```javascript
 divTable.selectAll();
 ```
 
 #### `clearSelection()`
+
 Clear all selections.
+
 ```javascript
 divTable.clearSelection();
 ```
@@ -383,12 +417,14 @@ divTable.applyQuery('name contains "Smith" AND department = "Engineering"');
 The widget uses CSS classes that can be customized:
 
 ### Main Structure
+
 - `.div-table-widget` - Main container
 - `.div-table-toolbar` - Toolbar area
 - `.div-table-header` - Header container
 - `.div-table-body` - Body container
 
 ### States
+
 - `.div-table-loading` - Loading placeholder
 - `.div-table-empty` - Empty state
 - `.loading-placeholder` - Virtual scrolling placeholder rows
