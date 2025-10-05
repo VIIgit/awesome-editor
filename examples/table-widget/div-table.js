@@ -288,7 +288,14 @@ class DivTable {
     
     if (this.data.length > 0) {
       const sampleItem = this.data[0];
+      const processedFields = new Set(); // Track processed fields to avoid duplicates
+      
       Object.keys(sampleItem).forEach(field => {
+        // Skip if already processed
+        if (processedFields.has(field)) {
+          return;
+        }
+        
         // Only process fields that are defined in columns
         const col = columnMap.get(field);
         if (!col) {
@@ -299,6 +306,8 @@ class DivTable {
         if (col.hidden) {
           return;
         }
+        
+        processedFields.add(field);
         
         // Use column type if defined, otherwise infer from data
         let fieldType;
@@ -312,7 +321,19 @@ class DivTable {
 
         let fieldValues;
         if (fieldType === 'string') {
-          const uniqueValues = [...new Set(this.data.map(item => item[field]))];
+          // Collect all values, flattening arrays
+          const allValues = [];
+          this.data.forEach(item => {
+            const value = item[field];
+            if (Array.isArray(value)) {
+              // Flatten array values
+              allValues.push(...value);
+            } else {
+              allValues.push(value);
+            }
+          });
+          const uniqueValues = [...new Set(allValues)];
+          
           const definedValues = uniqueValues.filter(value =>
             value !== null && value !== undefined && value !== ''
           );
@@ -325,12 +346,72 @@ class DivTable {
         }
         fieldNames[field] = { type: fieldType, values: fieldValues };
       });
+      
+      // Also add subFields from compound columns
+      this.columns.forEach(col => {
+        if (col.subField && !col.hidden && sampleItem[col.subField] !== undefined) {
+          const field = col.subField;
+          
+          // Skip if already processed
+          if (processedFields.has(field)) {
+            return;
+          }
+          processedFields.add(field);
+          
+          // Use column type if defined, otherwise infer from data
+          let fieldType;
+          if (col.subType) {
+            fieldType = col.subType;
+          } else {
+            fieldType = typeof sampleItem[field] === 'boolean' ? 'boolean'
+              : typeof sampleItem[field] === 'number' ? 'number'
+                : 'string';
+          }
+
+          let fieldValues;
+          if (fieldType === 'string') {
+            // Collect all values, flattening arrays
+            const allValues = [];
+            this.data.forEach(item => {
+              const value = item[field];
+              if (Array.isArray(value)) {
+                // Flatten array values
+                allValues.push(...value);
+              } else {
+                allValues.push(value);
+              }
+            });
+            
+            // Get unique values
+            const uniqueValues = [...new Set(allValues)];
+            const definedValues = uniqueValues.filter(value =>
+              value !== null && value !== undefined && value !== ''
+            );
+            const hasUndefinedValues = uniqueValues.some(value =>
+              value === null || value === undefined || value === ''
+            );
+            fieldValues = hasUndefinedValues
+              ? [...definedValues, 'NULL']
+              : definedValues;
+            
+          }
+          fieldNames[field] = { type: fieldType, values: fieldValues };
+        }
+      });
     } else {
       // When no data is available, create basic field structure from column definitions
       this.columns.forEach(col => {
         if (col.field && !col.hidden) {
           fieldNames[col.field] = { 
             type: col.type || 'string', 
+            values: col.values || [] 
+          };
+        }
+        
+        // Also add subFields from compound columns
+        if (col.subField && !col.hidden) {
+          fieldNames[col.subField] = { 
+            type: col.subType || col.type || 'string', 
             values: col.values || [] 
           };
         }
@@ -2193,10 +2274,20 @@ class DivTable {
     
     data.forEach(item => {
       const value = item[this.groupByField];
-      const key = value ?? '__null__';
+      
+      // Handle array values by joining them
+      let key;
+      let displayValue;
+      if (Array.isArray(value)) {
+        key = value.length > 0 ? value.join(', ') : '__null__';
+        displayValue = value.length > 0 ? value.join(', ') : null;
+      } else {
+        key = value ?? '__null__';
+        displayValue = value;
+      }
       
       if (!groups.has(key)) {
-        groups.set(key, { key, value, items: [] });
+        groups.set(key, { key, value: displayValue, items: [] });
       }
       groups.get(key).items.push(item);
     });
@@ -2984,9 +3075,24 @@ class DivTable {
         if (filteredCurrentFieldNames[field]) {
           const existingField = filteredCurrentFieldNames[field];
           
+          // Use column type if defined, otherwise use existing field type
+          const fieldType = col.type || existingField.type;
+          
           // For string fields, merge new values with existing ones
-          if (existingField.type === 'string' && existingField.values !== undefined) {
-            const uniqueValues = [...new Set(this.data.map(item => item[field]))];
+          if (fieldType === 'string' && existingField.values !== undefined) {
+            // Collect all values, flattening arrays
+            const allValues = [];
+            this.data.forEach(item => {
+              const value = item[field];
+              if (Array.isArray(value)) {
+                // Flatten array values
+                allValues.push(...value);
+              } else {
+                allValues.push(value);
+              }
+            });
+            
+            const uniqueValues = [...new Set(allValues)];
             const definedValues = uniqueValues.filter(value =>
               value !== null && value !== undefined && value !== ''
             );
@@ -2999,12 +3105,14 @@ class DivTable {
             const mergedValues = [...new Set([...existingValues, ...definedValues])];
             
             updatedFieldNames[field] = {
-              ...existingField,
+              type: fieldType,
               values: hasUndefinedValues ? [...mergedValues, 'NULL'] : mergedValues
             };
           } else {
-            // For non-string fields, keep the existing definition
-            updatedFieldNames[field] = existingField;
+            // For non-string fields (boolean, number), update the type but don't collect values
+            updatedFieldNames[field] = {
+              type: fieldType
+            };
           }
         }
         // Note: We don't add new fields that weren't in the original schema
@@ -3710,19 +3818,31 @@ class QueryEngine {
       case '=':
         if (value === null) return isNullish(objValue);
         if (isNullish(objValue)) return false;
+        // Handle array fields: check if the array contains the value
+        if (Array.isArray(objValue)) {
+          return objValue.includes(value);
+        }
         return objValue == value;
 
       case '!=':
         if (value === null) return !isNullish(objValue);
         if (isNullish(objValue)) return true;
+        // Handle array fields: check if the array does NOT contain the value
+        if (Array.isArray(objValue)) {
+          return !objValue.includes(value);
+        }
         return objValue != value;
 
       case '>':
         if (isNullish(objValue)) return false;
+        // Arrays don't support > comparison
+        if (Array.isArray(objValue)) return false;
         return objValue > parseFloat(value);
 
       case '<':
         if (isNullish(objValue)) return false;
+        // Arrays don't support < comparison
+        if (Array.isArray(objValue)) return false;
         return objValue < parseFloat(value);
 
       case 'IN':
@@ -3730,6 +3850,10 @@ class QueryEngine {
           return isNullish(objValue) || value.includes(objValue);
         }
         if (isNullish(objValue)) return false;
+        // Handle array fields: check if any element in objValue array is in the value list
+        if (Array.isArray(objValue)) {
+          return objValue.some(item => value.includes(item));
+        }
         return value.includes(objValue);
 
       default:

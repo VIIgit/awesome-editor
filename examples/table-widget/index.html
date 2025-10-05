@@ -241,6 +241,7 @@
             const departments = ['Engineering', 'Marketing', 'Sales', 'Support', 'Finance', 'HR', 'Operations'];
             const firstNames = ['John', 'Jane', 'Bob', 'Alice', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry'];
             const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+            const tagsArray = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
 
             for (let i = 0; i < pageSize; i++) {
               const id = startId + i;
@@ -250,7 +251,10 @@
               const department = departments[Math.floor(Math.random() * departments.length)];
               const age = Math.floor(Math.random() * 40) + 22; // Age between 22-62
               const active = Math.random() > 0.3; // 70% chance of being active
-
+              const tags = [tagsArray[Math.floor(Math.random() * tagsArray.length)]];
+              if (!active){
+                tags.push(tagsArray[Math.floor(Math.random() * tagsArray.length)]);
+              };
               newData.push({
                 id: id,
                 name: `${firstName} ${lastName}`,
@@ -258,6 +262,7 @@
                 city: city,
                 department: department,
                 active: active,
+                tags,
                 technical: 5000 + id // Hidden technical ID starting from 5001
               });
             }
@@ -289,6 +294,7 @@
             {
               field: 'id',
               label: 'ID',
+              type: 'number',
               responsive: { priority: 'low', size: 'fixed-narrow', hideMobile: true },
               groupable: false
             },
@@ -297,6 +303,7 @@
               label: 'Name',
               subLabel: 'Age',
               subField: 'age',
+              subType: 'number',
               subRender: (value) => value ? `${value} years old` : 'Age not specified',
               responsive: { priority: 'high', size: 'flexible-medium', allowWrap: true },
               groupable: false
@@ -304,6 +311,12 @@
             {
               field: 'department',
               label: 'Department',
+              responsive: { priority: 'medium', size: 'flexible-medium', allowWrap: true },
+              groupable: true
+            },
+            {
+              field: 'tags',
+              label: 'Tags',
               responsive: { priority: 'medium', size: 'flexible-medium', allowWrap: true },
               groupable: true
             },
@@ -318,6 +331,7 @@
             {
               field: 'active',
               label: 'Status',
+              type: 'boolean',
               render: (value) => {
                 if (value === true) return '✅ Active';
                 if (value === false) return '❌ Inactive';

@@ -174,7 +174,7 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
   };
 
   // Helper to get value suggestions based on field type
-  function getValueSuggestions(field) {
+  function getValueSuggestions(field, fieldName = 'unknown') {
     const suggestions = [];
     if (!field) {
       return suggestions;
@@ -197,7 +197,8 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
         }
       );
     } else if (field.type === 'string' && field.values) {
-      suggestions.push(...field.values.map(v => ({
+      console.log(`🔍 Generating suggestions for field "${fieldName}" with values:`, field.values);
+      const newSuggestions = field.values.map(v => ({
         label: v === 'NULL' ? 'NULL' : `"${v}"`,
         kind: monaco.languages.CompletionItemKind.Value,
         insertText: v === 'NULL' ? 'NULL' : `"${v}"`,
@@ -205,7 +206,9 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
           docMarkdown('Special keyword for null/undefined/empty values') :
           docMarkdown(`String value "${v}"`),
         sortText: getSortText('value', v)
-      })));
+      }));
+      console.log(`📋 Generated ${newSuggestions.length} suggestions for field "${fieldName}"`);
+      suggestions.push(...newSuggestions);
     } else if (field.type === 'string' && !field.values) {
       // For string fields without predefined values, suggest empty quotes with cursor positioning
       suggestions.push({
@@ -516,7 +519,7 @@ function setupCompletionProvider(monaco, { fieldNames, languageId }) {
         suggestions = getOperatorSuggestions(fieldNames[context.currentField], position, model);
       } else if (context.needsValue && context.currentField && fieldNames[context.currentField]) {
         // After an operator, show values
-        suggestions = getValueSuggestions(fieldNames[context.currentField]);
+        suggestions = getValueSuggestions(fieldNames[context.currentField], context.currentField);
       } else if (context.needsField || context.afterLogical || (tokens.length === 1 && /^[a-zA-Z]+$/.test(tokens[0]) && !fieldPattern.test(tokens[0]))) {        
         // Only show field suggestions if:
         // 1. We're at the start of a query, or
