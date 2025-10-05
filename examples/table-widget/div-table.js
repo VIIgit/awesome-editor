@@ -17,9 +17,8 @@ class DivTable {
     this.onSelectionChange = options.onSelectionChange || (() => {});
     this.onRowFocus = options.onRowFocus || (() => {});
     
-    // Loading placeholder options
+    // Loading placeholder option
     this.showLoadingPlaceholder = options.showLoadingPlaceholder !== false;
-    this.loadingPlaceholderText = options.loadingPlaceholderText || 'loading';
     this.isLoadingState = this.data.length === 0 && this.showLoadingPlaceholder; // Show loading when no initial data and enabled
     
     // Store whether we need to load first page automatically
@@ -151,7 +150,7 @@ class DivTable {
       return visibleColumns;
     }
     
-    // When grouping, move the grouped column to second position (after checkbox)
+    // When grouping, move the grouped column to first position (after checkbox)
     const orderedColumns = [...visibleColumns];
     const groupedColumnIndex = orderedColumns.findIndex(col => col.field === this.groupByField);
     
@@ -163,6 +162,37 @@ class DivTable {
     }
     
     return orderedColumns;
+  }
+
+  getCompositeColumns() {
+    // Group columns by fieldCompositeName to create composite cells
+    // Returns an array of objects: { compositeName, columns: [...] }
+    const orderedColumns = this.getOrderedColumns();
+    const compositeMap = new Map();
+    const result = [];
+    
+    orderedColumns.forEach(col => {
+      if (col.fieldCompositeName) {
+        // This column is part of a composite
+        if (!compositeMap.has(col.fieldCompositeName)) {
+          const composite = {
+            compositeName: col.fieldCompositeName,
+            columns: []
+          };
+          compositeMap.set(col.fieldCompositeName, composite);
+          result.push(composite);
+        }
+        compositeMap.get(col.fieldCompositeName).columns.push(col);
+      } else {
+        // Regular standalone column
+        result.push({
+          compositeName: null,
+          columns: [col]
+        });
+      }
+    });
+    
+    return result;
   }
 
   getAllColumns() {
@@ -265,6 +295,11 @@ class DivTable {
           return; // Skip computed or extra fields not in column definitions
         }
         
+        // Skip hidden columns
+        if (col.hidden) {
+          return;
+        }
+        
         // Use column type if defined, otherwise infer from data
         let fieldType;
         if (col.type) {
@@ -293,7 +328,7 @@ class DivTable {
     } else {
       // When no data is available, create basic field structure from column definitions
       this.columns.forEach(col => {
-        if (col.field) {
+        if (col.field && !col.hidden) {
           fieldNames[col.field] = { 
             type: col.type || 'string', 
             values: col.values || [] 
@@ -1076,19 +1111,19 @@ class DivTable {
   renderHeader() {
     this.headerContainer.innerHTML = '';
     
-    const orderedColumns = this.getOrderedColumns();
+    const compositeColumns = this.getCompositeColumns();
     
-    // Calculate total columns
-    const totalColumns = this.showCheckboxes ? orderedColumns.length + 1 : orderedColumns.length;
-    // Set grid template based on actual columns
+    // Build grid template based on composite columns
     let gridTemplate = '';
     if (this.showCheckboxes) {
       gridTemplate = '40px '; // Checkbox column
     }
     
-    // Add column templates
-    orderedColumns.forEach(col => {
-      const responsive = col.responsive || {};
+    // Add column templates for each composite group
+    compositeColumns.forEach(composite => {
+      // For composite columns, use the responsive size of the first column
+      const firstCol = composite.columns[0];
+      const responsive = firstCol.responsive || {};
       switch (responsive.size) {
         case 'fixed-narrow':
           gridTemplate += '80px ';
@@ -1135,14 +1170,349 @@ class DivTable {
       this.headerContainer.appendChild(checkboxCell);
     }
 
-    // Column headers
-    orderedColumns.forEach(col => {
+    // Column headers - iterate through composite columns
+    compositeColumns.forEach(composite => {
       const headerCell = document.createElement('div');
-      headerCell.className = 'div-table-header-cell sortable';
+      headerCell.className = 'div-table-header-cell';
+      
+      if (composite.compositeName) {
+        // This is a composite cell with multiple columns
+        headerCell.classList.add('composite-header');
+        this.renderCompositeHeaderCell(headerCell, composite);
+      } else {
+        // Single column
+        headerCell.classList.add('sortable');
+        const col = composite.columns[0];
+        this.renderSingleHeaderCell(headerCell, col);
+      }
+      
+      this.headerContainer.appendChild(headerCell);
+    });
+    
+    // Add scrollbar spacer if body has a scrollbar
+    this.updateScrollbarSpacer();
+  }
+  
+  updateScrollbarSpacer() {
+    // Remove existing spacer if present
+    const existingSpacer = this.headerContainer.querySelector('.scrollbar-spacer');
+    if (existingSpacer) {
+      existingSpacer.remove();
+    }
+    
+    // Check if body has a scrollbar
+    const hasScrollbar = this.bodyContainer.scrollHeight > this.bodyContainer.clientHeight;
+    
+    if (hasScrollbar) {
+      // Calculate scrollbar width
+      const scrollbarWidth = this.bodyContainer.offsetWidth - this.bodyContainer.clientWidth;
+      
+      // Add spacer div as an additional grid column
+      const spacer = document.createElement('div');
+      spacer.className = 'scrollbar-spacer';
+      spacer.style.width = `${scrollbarWidth}px`;
+      
+      // Update header grid template to include spacer column
+      const currentTemplate = this.headerContainer.style.gridTemplateColumns;
+      this.headerContainer.style.gridTemplateColumns = `${currentTemplate} ${scrollbarWidth}px`;
+      
+      this.headerContainer.appendChild(spacer);
+    }
+  }
+
+  renderSingleHeaderCell(headerCell, col) {
+    // Check if this column has a subLabel (compound column with two-line header)
+    if (col.subLabel) {
+      // Create vertical stacked header similar to composite headers
+      headerCell.classList.add('compound-header');
+      headerCell.style.display = 'flex';
+      headerCell.style.flexDirection = 'column';
+      headerCell.style.gap = '0';
+      headerCell.style.padding = '8px 12px';
+      headerCell.style.alignItems = 'flex-start';
+      
+      // Create container for main label with indicators
+      const mainLabelContainer = document.createElement('div');
+      mainLabelContainer.style.display = 'flex';
+      mainLabelContainer.style.alignItems = 'center';
+      mainLabelContainer.style.width = '100%';
+      mainLabelContainer.style.marginBottom = '4px';
+      
+      // Main label
+      const mainLabel = document.createElement('span');
+      mainLabel.className = 'compound-main-header';
+      mainLabel.innerHTML = col.label || col.field;
+      mainLabel.style.fontWeight = '600';
+      mainLabel.style.fontSize = '13px';
+      mainLabel.style.color = '#374151';
+      mainLabel.style.textAlign = 'left';
+      mainLabel.style.flex = '1';
+      mainLabelContainer.appendChild(mainLabel);
+      
+      // Right-aligned indicators wrapper
+      const rightContent = document.createElement('div');
+      rightContent.style.display = 'flex';
+      rightContent.style.alignItems = 'center';
+      rightContent.style.gap = '4px';
+      rightContent.style.marginLeft = 'auto';
+      
+      // Add groupable indicator if column is groupable
+      if (col.groupable !== false && !col.hidden) {
+        const groupIndicator = document.createElement('span');
+        groupIndicator.className = 'group-indicator';
+        if (this.groupByField === col.field) {
+          groupIndicator.classList.add('grouped');
+        }
+        groupIndicator.textContent = this.groupByField === col.field ? '☴' : '☷';
+        groupIndicator.style.cursor = 'pointer';
+        groupIndicator.style.fontSize = '1em';
+        const columnTitle = col.label || col.field;
+        groupIndicator.title = this.groupByField === col.field ? `Grouped by ${columnTitle} (click to ungroup)` : `Click to group by ${columnTitle}`;
+        
+        // Add click handler for grouping
+        groupIndicator.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent triggering sort
+          if (this.groupByField === col.field) {
+            this.group('');
+          } else {
+            this.group(col.field);
+          }
+        });
+        
+        rightContent.appendChild(groupIndicator);
+      }
+      
+      // Add sort indicator placeholder
+      const sortIndicator = document.createElement('span');
+      sortIndicator.style.opacity = '0.5';
+      sortIndicator.style.fontSize = '12px';
+      sortIndicator.style.marginLeft = '4px';
+      
+      if (this.sortColumn === col.field) {
+        sortIndicator.style.opacity = '1';
+        sortIndicator.textContent = this.sortDirection === 'asc' ? '↑' : '↓';
+      } else {
+        sortIndicator.textContent = '⇅';
+      }
+      
+      rightContent.appendChild(sortIndicator);
+      mainLabelContainer.appendChild(rightContent);
+      headerCell.appendChild(mainLabelContainer);
+      
+      // Sub label with sorting capability
+      const subLabelContainer = document.createElement('div');
+      subLabelContainer.className = 'compound-sub-header sortable';
+      subLabelContainer.style.display = 'flex';
+      subLabelContainer.style.alignItems = 'center';
+      subLabelContainer.style.width = '100%';
+      subLabelContainer.style.cursor = 'pointer';
+      subLabelContainer.style.borderRadius = '4px';
+      subLabelContainer.style.transition = 'background-color 0.2s ease';
+      
+      const subLabel = document.createElement('span');
+      subLabel.innerHTML = col.subLabel;
+      subLabel.style.fontSize = '11px';
+      subLabel.style.color = '#6b7280';
+      subLabel.style.textAlign = 'left';
+      subLabel.style.flex = '1';
+      subLabelContainer.appendChild(subLabel);
+      
+      // Add sort indicator for sub-field
+      if (col.subField) {
+        const subSortIndicator = document.createElement('span');
+        subSortIndicator.style.opacity = '0.5';
+        subSortIndicator.style.fontSize = '11px';
+        subSortIndicator.style.marginLeft = '4px';
+        
+        if (this.sortColumn === col.subField) {
+          subSortIndicator.style.opacity = '1';
+          subSortIndicator.textContent = this.sortDirection === 'asc' ? '↑' : '↓';
+        } else {
+          subSortIndicator.textContent = '⇅';
+        }
+        
+        subLabelContainer.appendChild(subSortIndicator);
+        
+        // Add hover effect
+        subLabelContainer.addEventListener('mouseenter', () => {
+          subLabelContainer.style.backgroundColor = '#f3f4f6';
+        });
+        subLabelContainer.addEventListener('mouseleave', () => {
+          subLabelContainer.style.backgroundColor = 'transparent';
+        });
+        
+        // Add click handler for sorting by subField
+        subLabelContainer.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent triggering parent sort
+          this.sort(col.subField);
+        });
+      }
+      
+      headerCell.appendChild(subLabelContainer);
+      
+      // Add sort functionality for main label
+      mainLabelContainer.addEventListener('click', (e) => {
+        const isGroupControl = e.target.classList.contains('group-indicator') || 
+                              e.target.closest('.group-indicator');
+        if (!isGroupControl) {
+          this.sort(col.field);
+        }
+      });
+      
+      return;
+    }
+    
+    // Left-aligned content wrapper
+    const leftContent = document.createElement('div');
+    leftContent.className = 'header-left-content';
+    
+    // Add collapse/expand all toggle if this column is currently grouped
+    if (this.groupByField === col.field) {
+      const groups = this.groupData(this.filteredData);
+      const groupCount = groups.length;
+      const columnLabel = col.label || col.field;
+      
+      // Collapse/expand all toggle button
+      const toggleAllBtn = document.createElement('span');
+      toggleAllBtn.className = 'group-toggle-all';
+      
+      // Check if all groups are collapsed
+      const allCollapsed = groups.every(g => this.collapsedGroups.has(g.key));
+      if (allCollapsed) {
+        toggleAllBtn.classList.add('collapsed');
+      }
+      toggleAllBtn.textContent = '❯';
+      toggleAllBtn.title = allCollapsed ? 'Expand all groups' : 'Collapse all groups';
+      
+      toggleAllBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (allCollapsed) {
+          // Expand all groups
+          this.collapsedGroups.clear();
+        } else {
+          // Collapse all groups
+          groups.forEach(group => {
+            this.collapsedGroups.add(group.key);
+          });
+        }
+        
+        this.render();
+      });
+      
+      leftContent.appendChild(toggleAllBtn);
+      
+      // Column label
+      const labelSpan = document.createElement('span');
+      labelSpan.innerHTML = columnLabel;
+      //labelSpan.style.fontWeight = 'bold';
+      leftContent.appendChild(labelSpan);
+      
+      // Count
+      const countSpan = document.createElement('span');
+      countSpan.className = 'group-count';
+      countSpan.innerHTML = `&nbsp;(${groupCount})`;
+      countSpan.style.opacity = '0.8';
+      countSpan.style.fontSize = '0.85em';
+      countSpan.style.fontWeight = 'normal';
+      countSpan.title = `${groupCount} distinct value${groupCount === 1 ? '' : 's'} in ${columnLabel}`;
+      leftContent.appendChild(countSpan);
+    } else {
+      // Regular column label
+      const labelSpan = document.createElement('span');
+      labelSpan.innerHTML = col.label || col.field;
+      //labelSpan.style.fontWeight = 'bold';
+      leftContent.appendChild(labelSpan);
+    }
+    
+    headerCell.appendChild(leftContent);
+    
+    // Right-aligned indicators wrapper
+    const rightContent = document.createElement('div');
+    rightContent.className = 'header-right-content';
+    
+    // Add groupable indicator if column is groupable (right-aligned)
+    if (col.groupable !== false && !col.hidden) {
+      const groupIndicator = document.createElement('span');
+      groupIndicator.className = 'group-indicator';
+      if (this.groupByField === col.field) {
+        groupIndicator.classList.add('grouped');
+      }
+      groupIndicator.textContent = this.groupByField === col.field ? '☴' : '☷';
+      groupIndicator.style.cursor = 'pointer';
+      groupIndicator.style.fontSize = '1em';
+      const columnTitle = col.label || col.field;
+      groupIndicator.title = this.groupByField === col.field ? `Grouped by ${columnTitle} (click to ungroup)` : `Click to group by ${columnTitle}`;
+      
+      // Add click handler for grouping
+      groupIndicator.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering sort
+        if (this.groupByField === col.field) {
+          // If already grouped by this column, remove grouping
+          this.group('');
+        } else {
+          // Group by this column
+          this.group(col.field);
+        }
+      });
+      
+      rightContent.appendChild(groupIndicator);
+    }
+    
+    // Add sort indicator
+    const sortIndicator = document.createElement('span');
+    sortIndicator.style.opacity = '0.5';
+    sortIndicator.style.fontSize = '12px';
+    sortIndicator.style.marginLeft = '4px';
+    
+    if (this.sortColumn === col.field) {
+      sortIndicator.style.opacity = '1';
+      sortIndicator.textContent = this.sortDirection === 'asc' ? '↑' : '↓';
+      headerCell.classList.add('sorted', this.sortDirection);
+    } else {
+      sortIndicator.textContent = '⇅';
+    }
+    
+    rightContent.appendChild(sortIndicator);
+    headerCell.appendChild(rightContent);
+
+    headerCell.addEventListener('click', (e) => {
+      // Only sort if not clicking on group indicator, toggle all, or their parent containers
+      const isGroupControl = e.target.classList.contains('group-indicator') || 
+                            e.target.classList.contains('group-toggle-all') ||
+                            e.target.closest('.group-toggle-all') ||
+                            e.target.closest('.group-indicator');
+      
+      if (!isGroupControl) {
+        this.sort(col.field);
+      }
+    });
+  }
+
+  renderCompositeHeaderCell(headerCell, composite) {
+    // Composite header contains multiple sub-columns stacked vertically
+    headerCell.style.display = 'flex';
+    headerCell.style.flexDirection = 'column';
+    headerCell.style.gap = '4px';
+    headerCell.style.padding = '8px 12px';
+    
+    // Check if any column in this composite is grouped
+    const groupedColumn = composite.columns.find(col => this.groupByField === col.field);
+    
+    composite.columns.forEach((col, index) => {
+      const subHeader = document.createElement('div');
+      subHeader.className = 'composite-sub-header sortable';
+      subHeader.style.display = 'flex';
+      subHeader.style.alignItems = 'center';
+      subHeader.style.gap = '8px';
       
       // Left-aligned content wrapper
       const leftContent = document.createElement('div');
-      leftContent.className = 'header-left-content';
+      leftContent.style.display = 'flex';
+      leftContent.style.alignItems = 'center';
+      leftContent.style.gap = '8px';
+      leftContent.style.flex = '1';
       
       // Add collapse/expand all toggle if this column is currently grouped
       if (this.groupByField === col.field) {
@@ -1184,33 +1554,33 @@ class DivTable {
         // Column label
         const labelSpan = document.createElement('span');
         labelSpan.innerHTML = columnLabel;
-        labelSpan.style.fontWeight = 'bold';
         leftContent.appendChild(labelSpan);
         
-        // Count
-        const countSpan = document.createElement('span');
-        countSpan.className = 'group-count';
-        countSpan.innerHTML = `&nbsp;(${groupCount})`;
-        countSpan.style.opacity = '0.8';
-        countSpan.style.fontSize = '0.85em';
-        countSpan.style.fontWeight = 'normal';
-        countSpan.title = `${groupCount} distinct value${groupCount === 1 ? '' : 's'} in ${columnLabel}`;
-        leftContent.appendChild(countSpan);
+        // Group count
+        const groupCountSpan = document.createElement('span');
+        groupCountSpan.className = 'group-count';
+        groupCountSpan.innerHTML = `&nbsp;(${groupCount})`;
+        groupCountSpan.style.opacity = '0.8';
+        groupCountSpan.style.fontSize = '0.85em';
+        groupCountSpan.style.fontWeight = 'normal';
+        groupCountSpan.title = `${groupCount} distinct value${groupCount === 1 ? '' : 's'} in ${columnLabel}`;
+        leftContent.appendChild(groupCountSpan);
       } else {
-        // Regular column label
+        // Regular label (not grouped)
         const labelSpan = document.createElement('span');
         labelSpan.innerHTML = col.label || col.field;
-        labelSpan.style.fontWeight = 'bold';
         leftContent.appendChild(labelSpan);
       }
       
-      headerCell.appendChild(leftContent);
+      subHeader.appendChild(leftContent);
       
-      // Right-aligned indicators wrapper
+      // Right-aligned content wrapper
       const rightContent = document.createElement('div');
-      rightContent.className = 'header-right-content';
+      rightContent.style.display = 'flex';
+      rightContent.style.alignItems = 'center';
+      rightContent.style.gap = '4px';
       
-      // Add groupable indicator if column is groupable (right-aligned)
+      // Grouping indicator
       if (col.groupable !== false && !col.hidden) {
         const groupIndicator = document.createElement('span');
         groupIndicator.className = 'group-indicator';
@@ -1223,14 +1593,11 @@ class DivTable {
         const columnTitle = col.label || col.field;
         groupIndicator.title = this.groupByField === col.field ? `Grouped by ${columnTitle} (click to ungroup)` : `Click to group by ${columnTitle}`;
         
-        // Add click handler for grouping
         groupIndicator.addEventListener('click', (e) => {
-          e.stopPropagation(); // Prevent triggering sort
+          e.stopPropagation();
           if (this.groupByField === col.field) {
-            // If already grouped by this column, remove grouping
             this.group('');
           } else {
-            // Group by this column
             this.group(col.field);
           }
         });
@@ -1238,38 +1605,34 @@ class DivTable {
         rightContent.appendChild(groupIndicator);
       }
       
-      headerCell.appendChild(rightContent);
+      subHeader.appendChild(rightContent);
       
-      // Add sort class for CSS-based indicator
+      // Sort indicator (CSS-based)
       if (this.sortColumn === col.field) {
-        headerCell.classList.add('sorted', this.sortDirection);
+        subHeader.classList.add('sorted', this.sortDirection);
       }
-
-      headerCell.addEventListener('click', (e) => {
-        // Only sort if not clicking on group indicator, toggle all, or their parent containers
-        const isGroupControl = e.target.classList.contains('group-indicator') || 
+      
+      // Click handler for sorting
+      subHeader.addEventListener('click', (e) => {
+        const isGroupControl = e.target.classList.contains('group-indicator') ||
                               e.target.classList.contains('group-toggle-all') ||
-                              e.target.closest('.group-toggle-all') ||
-                              e.target.closest('.group-indicator');
-        
+                              e.target.closest('.group-indicator') ||
+                              e.target.closest('.group-toggle-all');
         if (!isGroupControl) {
           this.sort(col.field);
         }
       });
-
-      this.headerContainer.appendChild(headerCell);
+      
+      headerCell.appendChild(subHeader);
     });
   }
 
   renderBody() {
     this.bodyContainer.innerHTML = '';
 
-    // Show loading placeholder if enabled and in loading state
-    if (this.showLoadingPlaceholder && this.isLoadingState) {
-      const loadingState = document.createElement('div');
-      loadingState.className = 'div-table-loading';
-      loadingState.innerHTML = this.loadingPlaceholderText;
-      this.bodyContainer.appendChild(loadingState);
+    // Show loading placeholders if in loading state
+    if (this.isLoadingState) {
+      this.showLoadingPlaceholders();
       return;
     }
 
@@ -1348,20 +1711,18 @@ class DivTable {
     row.dataset.id = item[this.primaryKeyField];
     // Don't set tabindex here - will be managed by updateTabIndexes() based on checkbox presence
     
-    const orderedColumns = this.getOrderedColumns();
+    const compositeColumns = this.getCompositeColumns();
     
-    // Use the same grid template as header
-    const totalColumns = this.showCheckboxes ? orderedColumns.length + 1 : orderedColumns.length;
-    
-    // Set the same grid template as header
+    // Build grid template matching the header
     let gridTemplate = '';
     if (this.showCheckboxes) {
       gridTemplate = '40px '; // Checkbox column
     }
     
-    // Add column templates
-    orderedColumns.forEach(col => {
-      const responsive = col.responsive || {};
+    // Add column templates for each composite group
+    compositeColumns.forEach(composite => {
+      const firstCol = composite.columns[0];
+      const responsive = firstCol.responsive || {};
       switch (responsive.size) {
         case 'fixed-narrow':
           gridTemplate += '80px ';
@@ -1463,21 +1824,103 @@ class DivTable {
       row.appendChild(checkboxCell);
     }
 
-    // Data columns
-    this.getOrderedColumns().forEach(col => {
+    // Data columns - render using composite structure
+    compositeColumns.forEach(composite => {
       const cell = document.createElement('div');
       cell.className = 'div-table-cell';
       
-      // For grouped column, show empty
-      if (this.groupByField && col.field === this.groupByField) {
-        cell.classList.add('grouped-column');
-        cell.textContent = '';
+      if (composite.compositeName) {
+        // Composite cell with multiple columns stacked vertically
+        cell.classList.add('composite-cell');
+        cell.style.display = 'flex';
+        cell.style.flexDirection = 'column';
+        cell.style.gap = '4px';
+        
+        composite.columns.forEach((col, index) => {
+          const subCell = document.createElement('div');
+          subCell.className = 'composite-sub-cell';
+          
+          // For grouped column, show empty
+          if (this.groupByField && col.field === this.groupByField) {
+            subCell.classList.add('grouped-column');
+            subCell.textContent = '';
+          } else {
+            // Check if this column has subField (vertical stacking within the sub-cell)
+            if (col.subField) {
+              subCell.classList.add('compound-column');
+              subCell.style.display = 'flex';
+              subCell.style.flexDirection = 'column';
+              subCell.style.gap = '2px';
+              
+              const mainDiv = document.createElement('div');
+              mainDiv.className = 'compound-main';
+              if (typeof col.render === 'function') {
+                mainDiv.innerHTML = col.render(item[col.field], item);
+              } else {
+                mainDiv.innerHTML = item[col.field] ?? '';
+              }
+              
+              const subDiv = document.createElement('div');
+              subDiv.className = 'compound-sub';
+              if (typeof col.subRender === 'function') {
+                subDiv.innerHTML = col.subRender(item[col.subField], item);
+              } else {
+                subDiv.innerHTML = item[col.subField] ?? '';
+              }
+              
+              subCell.appendChild(mainDiv);
+              subCell.appendChild(subDiv);
+            } else {
+              // Regular rendering
+              if (typeof col.render === 'function') {
+                subCell.innerHTML = col.render(item[col.field], item);
+              } else {
+                subCell.innerHTML = item[col.field] ?? '';
+              }
+            }
+          }
+          
+          cell.appendChild(subCell);
+        });
       } else {
-        // Regular column rendering
-        if (typeof col.render === 'function') {
-          cell.innerHTML = col.render(item[col.field], item);
+        // Single column
+        const col = composite.columns[0];
+        
+        // For grouped column, show empty
+        if (this.groupByField && col.field === this.groupByField) {
+          cell.classList.add('grouped-column');
+          cell.textContent = '';
         } else {
-          cell.innerHTML = item[col.field] ?? '';
+          // Check if this is a compound column with subField (vertical stacking)
+          if (col.subField) {
+            cell.classList.add('compound-column');
+            
+            const mainDiv = document.createElement('div');
+            mainDiv.className = 'compound-main';
+            if (typeof col.render === 'function') {
+              mainDiv.innerHTML = col.render(item[col.field], item);
+            } else {
+              mainDiv.innerHTML = item[col.field] ?? '';
+            }
+            
+            const subDiv = document.createElement('div');
+            subDiv.className = 'compound-sub';
+            if (typeof col.subRender === 'function') {
+              subDiv.innerHTML = col.subRender(item[col.subField], item);
+            } else {
+              subDiv.innerHTML = item[col.subField] ?? '';
+            }
+            
+            cell.appendChild(mainDiv);
+            cell.appendChild(subDiv);
+          } else {
+            // Regular column rendering
+            if (typeof col.render === 'function') {
+              cell.innerHTML = col.render(item[col.field], item);
+            } else {
+              cell.innerHTML = item[col.field] ?? '';
+            }
+          }
         }
       }
       
@@ -2769,6 +3212,11 @@ class DivTable {
   }
 
   showLoadingPlaceholders() {
+    // Only show placeholders if the option is enabled
+    if (!this.showLoadingPlaceholder) {
+      return;
+    }
+    
     // Remove any existing placeholders first
     this.hideLoadingPlaceholders();
     
@@ -3125,13 +3573,6 @@ class DivTable {
     
     // Re-render to show loading placeholder
     this.render();
-  }
-
-  setLoadingPlaceholderText(text) {
-    this.loadingPlaceholderText = text || 'loading';
-    if (this.isLoadingState) {
-      this.render(); // Re-render to show updated text
-    }
   }
 
   setLoadingState(isLoading) {

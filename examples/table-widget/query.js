@@ -1724,8 +1724,7 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
     clearButton.style.cssText = `
       position: absolute;
       right: 5px;
-      top: 40%;
-      transform: translateY(-50%);
+      top: -12px;
       width: 20px;
       height: 20px;
       border: 1px solid #d1d5db;
@@ -1749,14 +1748,12 @@ function createQueryEditor(monaco, container, { fieldNames = {}, initialValue = 
       clearButton.style.background = '#fef2f2';
       clearButton.style.color = '#dc2626';
       clearButton.style.borderColor = '#fca5a5';
-      clearButton.style.transform = 'translateY(-50%) scale(1.05)';
     });
 
     clearButton.addEventListener('mouseleave', () => {
       clearButton.style.background = '#f9fafb';
       clearButton.style.color = '#6b7280';
       clearButton.style.borderColor = '#d1d5db';
-      clearButton.style.transform = 'translateY(-50%) scale(1)';
     });
 
     // Add clear functionality

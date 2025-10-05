@@ -33,7 +33,6 @@
   transition: all 0.2s ease-in-out;
   flex: 1;
   min-width: 50%;
-  max-width: 70%;
   overflow: hidden;
 }
 
@@ -268,7 +267,7 @@
   left: 0;
   bottom: 0;
   right: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
   animation: loading-shimmer 1.5s infinite;
 }
 
@@ -303,7 +302,7 @@
   left: 0;
   bottom: 0;
   right: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
   animation: loading-shimmer 1.5s infinite;
 }
 
@@ -337,7 +336,7 @@
   left: 0;
   bottom: 0;
   right: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
   animation: loading-shimmer 1.5s infinite;
 }
 
@@ -347,7 +346,7 @@
 }
 
 .loading-progress[data-state="filtered"] .loading-progress-bar.loading::after {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
   animation: filtered-shimmer 2s infinite;
 }
 
@@ -356,13 +355,23 @@
 }
 
 @keyframes loading-shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes filtered-shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* Table container using CSS Grid */
@@ -383,9 +392,14 @@
   display: grid;
   min-height: 48px;
   align-items: center;
-  font-weight: 600;
   color: #374151;
   transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scrollbar spacer to align header with body when scrollbar is present */
+.scrollbar-spacer {
+  background: transparent;
+  pointer-events: none;
 }
 
 /* Add shadow when scrolling */
@@ -404,7 +418,7 @@
 .div-table-row {
   display: grid;
   min-height: 44px;
-  align-items: center;
+  align-items: start;
   border-bottom: 1px solid #f1f3f4;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -426,14 +440,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-height: 28px;
+  min-width: 0;
 }
 
 /* Header cell styling */
 .div-table-header-cell {
-  padding: 12px;
-  font-weight: 600;
+  padding: 8px 12px;
   color: #374151;
   cursor: pointer;
   user-select: none;
@@ -441,6 +455,7 @@
   align-items: center;
   justify-content: space-between;
   transition: background-color 0.2s ease;
+  overflow: hidden;
 }
 
 .header-left-content {
@@ -460,23 +475,6 @@
 
 .div-table-header-cell:hover {
   background-color: rgba(0, 0, 0, 0.05);
-}
-
-.header-right-content::after {
-  content: '⇅';
-  margin-left: 4px;
-  opacity: 0.5;
-  font-size: 12px;
-}
-
-.div-table-header-cell.sorted.asc .header-right-content::after {
-  content: '⬆︎';
-  opacity: 1;
-}
-
-.div-table-header-cell.sorted.desc .header-right-content::after {
-  content: '⬇︎';
-  opacity: 1;
 }
 
 /* Group indicator styling */
@@ -503,6 +501,7 @@
   min-width: 40px;
   max-width: 40px;
   justify-content: center;
+  align-items: center;
   padding: 4px;
 }
 
@@ -633,6 +632,133 @@ input[type="checkbox"]:indeterminate::after {
   font-style: italic;
 }
 
+/* Compound column styling - for stacked fields in one column (subField) */
+.div-table-cell.compound-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 12px;
+  white-space: normal;
+}
+
+/* First child (.compound-main) renders like normal cell - no special styling */
+
+.compound-sub {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.2;
+}
+
+/* Composite cell styling - for stacked rows (fieldCompositeName) */
+.div-table-cell.composite-cell {
+  padding: 8px 12px;
+  flex-direction: column;
+  gap: 0;
+  align-items: stretch;
+}
+
+.composite-sub-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.composite-sub-cell:first-child {
+  margin-bottom: 4px;
+}
+
+.composite-sub-cell:not(:first-child) {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* Composite header styling */
+.div-table-header-cell.composite-header {
+  padding: 8px 12px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.composite-sub-header {
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  min-width: 0;
+  width: 100%;
+}
+
+.composite-sub-header:first-child {
+  font-weight: 600;
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.composite-sub-header:not(:first-child) {
+  font-size: 11px;
+}
+
+.composite-sub-header:hover {
+  background-color: #f3f4f6;
+}
+
+/* Composite toggle button styling */
+.composite-toggle {
+  display: inline-block;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: transform 0.2s ease;
+  user-select: none;
+}
+
+.composite-toggle:hover {
+  opacity: 0.7;
+}
+
+/* Sort placeholder for unsorted composite columns */
+.composite-sub-header.sortable::after {
+  content: '⇅';
+  margin-left: 6px;
+  opacity: 0.5;
+  font-size: 11px;
+}
+
+.composite-sub-header.sorted {
+  position: relative;
+}
+
+.composite-sub-header.sorted::after {
+  content: '⇅';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-left: 6px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  opacity: 1;
+}
+
+.composite-sub-header.sorted.asc::after {
+  content: '↑';
+  border: none;
+  width: auto;
+  height: auto;
+  opacity: 1;
+}
+
+.composite-sub-header.sorted.desc::after {
+  content: '↓';
+  border: none;
+  width: auto;
+  height: auto;
+  opacity: 1;
+}
+
 /* Hide collapsed group rows */
 .div-table-row.group-collapsed {
   display: none;
@@ -717,6 +843,7 @@ input[type="checkbox"]:indeterminate::after {
 }
 
 @media (max-width: 480px) {
+
   .div-table-cell.hidden-small,
   .div-table-header-cell.hidden-small {
     display: none;
@@ -808,8 +935,13 @@ input[type="checkbox"]:indeterminate::after {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Virtual Scrolling Indicators */

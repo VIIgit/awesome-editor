@@ -72,8 +72,7 @@ const divTable = new DivTable(monaco, {
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `showLoadingPlaceholder` | boolean | `true` | Show loading placeholder when no data |
-| `loadingPlaceholderText` | string | `'...loading'` | Text for loading placeholder |
+| `showLoadingPlaceholder` | boolean | `true` | Show animated skeleton rows when loading data |
 | `showRefreshButton` | boolean | `false` | Show refresh button in info section |
 | `showAutoFetchButton` | boolean | `true` | Show auto-fetch button (for virtual scrolling only) |
 | `autoFetchDelay` | number | `500` | Delay in milliseconds between auto-fetch requests |
@@ -131,7 +130,6 @@ const columns = [
 
 - Column labels (`label` property) support HTML content
 - Cell values support HTML content directly from data (no render function needed)
-- Loading placeholder text supports HTML content
 
 ```javascript
 // HTML in column labels
@@ -147,9 +145,6 @@ const data = [
     name: '<strong>John Doe</strong>'
   }
 ];
-
-// HTML in loading placeholder
-loadingPlaceholderText: '🔄 <em>Loading data...</em>'
 ```
 
 ### Responsive Options
@@ -267,28 +262,49 @@ divTable.clearSelection();
 
 #### `resetToLoading()`
 
-Reset table to loading state.
+Reset table to loading state (shows animated skeleton rows).
 
 ```javascript
 divTable.resetToLoading();
 ```
 
-#### `setLoadingPlaceholderText(text)`
-
-Update loading placeholder text.
-
-```javascript
-divTable.setLoadingPlaceholderText('Fetching latest data...');
-```
-
 #### `setLoadingState(isLoading)`
 
-Manually control the loading state. When `true`, shows loading placeholder (if enabled). When `false`, shows data or empty state.
+Manually control the loading state. When `true`, shows loading placeholders (animated skeleton rows). When `false`, shows data or empty state.
 
 ```javascript
-divTable.setLoadingState(true);  // Show loading placeholder
-divTable.setLoadingState(false); // Hide loading placeholder
+divTable.setLoadingState(true);  // Show loading skeleton rows
+divTable.setLoadingState(false); // Hide loading placeholders
 ```
+
+#### Loading Placeholder Behavior
+
+The `showLoadingPlaceholder` option controls all loading indicators throughout the table:
+
+**What it does:**
+
+- Shows 3 animated skeleton rows during initial data load
+- Shows 3 animated skeleton rows during pagination/auto-fetch
+- Skeleton rows automatically match your column structure (grid template, responsive sizes)
+- Respects grouped columns (shows narrower placeholders for grouped fields)
+
+**When it appears:**
+
+- Initial load: When table is created without data and waiting for first page
+- Pagination: When scrolling triggers loading of next page
+- Auto-fetch: During automated pagination requests
+- Manual trigger: When calling `setLoadingState(true)` or `resetToLoading()`
+
+**How to disable:**
+
+```javascript
+const divTable = new DivTable(monaco, {
+  showLoadingPlaceholder: false,  // Disables all loading animations
+  // ... other options
+});
+```
+
+**Note:** When `showLoadingPlaceholder: false`, the table will show no loading indicators at all. Data will appear instantly when loaded.
 
 ### Auto-Fetch
 
