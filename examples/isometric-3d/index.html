@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modern Spherical Controller Demo</title>
     <link rel="stylesheet" href="isometric-3d.css">
+    <link rel="stylesheet" href="styles.css">
     <style>
         body {
             margin: 0;
@@ -16,8 +17,32 @@
         }
 
         .isometric-container {
-            height: 600px;
-            width: 1000px;
+            position: sticky;
+            top: 20px;
+            height: 300px;
+            width: 100%;
+            z-index: 100;
+        }
+
+        .content-sections {
+            margin: 0 20px 40px 20px;
+            flex-grow: 1;
+        }
+
+        .description-section {
+            scroll-margin-top: 340px; /* Offset for sticky container */
+            position: relative;
+        }
+
+        .description-section h2 {
+            position: sticky;
+            top: 340px; /* 600px container + 20px top + 20px spacing */
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            margin: 0;
+            padding: 15px 20px;
+            z-index: 50;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .grid-layout {
@@ -61,6 +86,10 @@
             width: 100%;
             height: 100%;
         }
+        
+        #modern-scene{
+            background-color: antiquewhite;
+        }
     </style>
 </head>
 
@@ -75,7 +104,7 @@
                 <div class="face back">back</div>
                 <div class="face left">left</div>
                 <div class="face right">right</div>
-                <div class="face top">top</div>
+                <div class="face top" data-nav-xyz="48.00.-79" data-nav-zoom="1.8" data-focus="center" data-id="cube1-description">top</div>
                 <div class="face bottom">bottom</div>
             </div>
             <div style="transform-style: preserve-3d;"> Cube 2
@@ -85,16 +114,16 @@
                     <div class="face back">back</div>
                     <div class="face left">left</div>
                     <div class="face right">right</div>
-                    <div class="face top" data-z-axis="180" data-nav-xyz="00.00.15" data-nav-zoom="0.8">top</div>
+                    <div class="face top" id="cube2-top" data-z-axis="180" data-nav-xyz="00.00.15" data-nav-zoom="0.8" data-id="cube2-top-description">top</div>
                     <div class="face bottom">bottom</div>
                 </div>
             </div>
-            <div id="cube3" class="scene scene-c" data-width="200" data-height="40" data-depth="80" data-z-axis="5" data-focus="center">
+            <div id="cube3" class="scene scene-c" data-width="200" data-height="40" data-depth="80" data-z-axis="50">
                 <div class="face front">front</div>
                 <div class="face back">back</div>
                 <div class="face left">left</div>
                 <div class="face right">right</div>
-                <div class="face top"  data-nav-xyz="15.00.-15" data-nav-zoom="1.1">top</div>
+                <div class="face top"  data-nav-xyz="15.00.-15" data-nav-zoom="1.1" data-focus="center" data-id="cube3-description">top</div>
                 <div class="face bottom">bottom</div>
             </div>
         </div>
@@ -116,10 +145,39 @@
 
     </div>
 
+    <div class="content-sections">
+        <div id="cube1-description" class="description-section" data-nav-target="cube1" style="min-height: 600px; background: #f0f0f0; margin-bottom: 20px;">
+            <h2>CUBE 1 DESCRIPTION</h2>
+            <div style="padding: 20px;">
+                <p>This is the description for Cube 1.</p>
+                <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+            </div>
+        </div>
+
+        <div id="cube2-top-description" class="description-section" data-nav-target="cube2-top" style="min-height: 600px; background: #e0e0e0; margin-bottom: 20px;">
+            <h2>CUBE 2 TOP DESCRIPTION</h2>
+            <div style="padding: 20px;">
+                <p>This is the description for Cube 2 Top face.</p>
+                <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+                <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+            </div>
+        </div>
+
+        <div id="cube3-description" class="description-section" data-nav-target="cube3" style="min-height: 600px; background: #d0d0d0; margin-bottom: 20px;">
+            <h2>CUBE 3 DESCRIPTION</h2>
+            <div style="padding: 20px;">
+                <p>This is the description for Cube 3.</p>
+                <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
+                <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores.</p>
+            </div>
+        </div>
+    </div>
+
     <script src="isometric-3d.js"></script>
     <script>
         // Initialize with the new spherical controller
-        createIsometric3D('modern-scene', {
+        const controller = createIsometric3D('modern-scene', {
             defaultRotation: { x: 45, y: 0, z: -35 },
             defaultZoom: 1.0,
             showCompactControls: true,
@@ -130,6 +188,74 @@
                 z: { min: -180, max: 180 }
             }
         });
+
+        // Scroll Synchronization System - Simplified with event system
+        class ScrollSync {
+            constructor(controller) {
+                this.controller = controller;
+                this.programmaticScroll = false;
+                this.setupBidirectionalSync();
+            }
+
+            setupBidirectionalSync() {
+                // 1. Navigation → Scroll: When 3D navigation changes, scroll to description
+                this.controller.on('navigationChange', (data) => {
+                    const sectionId = data.element.getAttribute('data-id');
+                    if (sectionId && !this.programmaticScroll) {
+                        this.scrollToSection(sectionId);
+                    }
+                });
+
+                // 2. Scroll → Navigation: When scrolling, detect which section is in focus
+                this.setupScrollDetection();
+            }
+
+            setupScrollDetection() {
+                const sections = document.querySelectorAll('.description-section');
+                
+                // Use IntersectionObserver with the sticky threshold as the trigger point
+                const observer = new IntersectionObserver((entries) => {
+                    if (this.programmaticScroll) return;
+                    
+                    // Find which section is currently at the sticky threshold
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const navTarget = entry.target.getAttribute('data-nav-target');
+                            if (navTarget) {
+                                console.log('Section in focus:', navTarget);
+                                this.controller.navigateByKey(navTarget);
+                            }
+                        }
+                    });
+                }, {
+                    // Trigger when section crosses the sticky h2 position (340px from top)
+                    rootMargin: '-340px 0px -50% 0px',
+                    threshold: 0
+                });
+
+                sections.forEach(section => observer.observe(section));
+            }
+
+            scrollToSection(sectionId) {
+                const section = document.getElementById(sectionId);
+                if (!section) return;
+
+                this.programmaticScroll = true;
+                
+                section.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+
+                // Reset flag after scroll completes
+                setTimeout(() => {
+                    this.programmaticScroll = false;
+                }, 1000);
+            }
+        }
+
+        // Initialize scroll synchronization
+        new ScrollSync(controller);
 
     </script>
 </body>

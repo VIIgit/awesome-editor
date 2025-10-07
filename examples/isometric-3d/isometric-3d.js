@@ -67,6 +67,11 @@ class Isometric3D {
     // Compact controls option
     this.showCompactControls = options.showCompactControls || false;
 
+    // Event listeners for custom events
+    this.eventListeners = {
+      navigationChange: []
+    };
+
     // Bind methods to preserve 'this' context
     this.onMouseDown = this.onMouseDown.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -429,6 +434,98 @@ class Isometric3D {
         point.classList.remove('active');
       }
     });
+    
+    // Update nav-selected class on navigable elements
+    this.updateNavSelectedElements(activeIndex);
+  }
+  
+  updateNavSelectedElements(activeIndex) {
+    // Get all navigable elements (scenes and faces with nav attributes)
+    const navigableElements = this.container.querySelectorAll('[data-nav-xyz], [data-nav-zoom]');
+    
+    // Remove nav-selected from all scenes and faces
+    const allScenesAndFaces = this.container.querySelectorAll('.scene, .face');
+    allScenesAndFaces.forEach(el => {
+      el.classList.remove('nav-selected');
+    });
+    
+    // If activeIndex is valid, add nav-selected only to the active element
+    if (activeIndex >= 0 && activeIndex < navigableElements.length) {
+      const activeElement = navigableElements[activeIndex];
+      activeElement.classList.add('nav-selected');
+      
+      // Emit navigation change event
+      this.emit('navigationChange', {
+        index: activeIndex,
+        element: activeElement,
+        id: activeElement.id || null,
+        key: activeElement.getAttribute('data-id') || activeElement.id || null
+      });
+    }
+  }
+
+  // Event system methods
+  on(eventName, callback) {
+    if (!this.eventListeners[eventName]) {
+      this.eventListeners[eventName] = [];
+    }
+    this.eventListeners[eventName].push(callback);
+  }
+
+  off(eventName, callback) {
+    if (!this.eventListeners[eventName]) return;
+    this.eventListeners[eventName] = this.eventListeners[eventName].filter(cb => cb !== callback);
+  }
+
+  emit(eventName, data) {
+    if (!this.eventListeners[eventName]) return;
+    this.eventListeners[eventName].forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error(`Error in ${eventName} event listener:`, error);
+      }
+    });
+  }
+
+  // Navigate to element by ID or data-id attribute
+  navigateByKey(key) {
+    const navigableElements = this.container.querySelectorAll('[data-nav-xyz], [data-nav-zoom]');
+    
+    // Try to find element by ID first
+    let targetElement = this.container.querySelector(`#${key}`);
+    
+    // If not found by ID, try data-id attribute
+    if (!targetElement || (!targetElement.hasAttribute('data-nav-xyz') && !targetElement.hasAttribute('data-nav-zoom'))) {
+      targetElement = this.container.querySelector(`[data-id="${key}"]`);
+    }
+    
+    // If still not found, try to find a child with nav attributes
+    if (targetElement && !targetElement.hasAttribute('data-nav-xyz') && !targetElement.hasAttribute('data-nav-zoom')) {
+      const childElement = targetElement.querySelector('[data-nav-xyz], [data-nav-zoom]');
+      if (childElement) {
+        targetElement = childElement;
+      }
+    }
+    
+    if (targetElement && (targetElement.hasAttribute('data-nav-xyz') || targetElement.hasAttribute('data-nav-zoom'))) {
+      // Get navigation data from element
+      const xyz = targetElement.getAttribute('data-nav-xyz');
+      const zoom = targetElement.getAttribute('data-nav-zoom');
+      
+      // Find index for updating nav bar
+      const index = Array.from(navigableElements).indexOf(targetElement);
+      if (index !== -1) {
+        this.setActiveNavPoint(index);
+      }
+      
+      // Navigate to the position
+      this.navigateToPosition(xyz, zoom);
+      return true;
+    }
+    
+    console.warn(`Navigation target not found for key: ${key}`);
+    return false;
   }
 
   addEventListeners() {

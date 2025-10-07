@@ -1,0 +1,108 @@
+.isometric-perspective {
+  background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+  border: 3px solid #333;
+  box-shadow:
+    0 0 20px rgba(0, 0, 0, 0.3),
+    inset 0 0 20px rgba(255, 255, 255, 0.1);
+
+}
+
+.sphere-container, .zoom-button, .help-button, .keyboard-help {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.nav-point.active {
+  background: rgba(181, 15, 15, 0.908);
+}
+
+.face.nav-selected,
+.scene.nav-selected {
+  outline: 2px solid rgba(82, 82, 82, 0.5);
+  outline-offset: 5px;
+  border-radius: 6px;
+}
+
+/* Default face colors - can be overridden by instances */
+.face.front {
+  background: rgba(255, 107, 107, 0.8);
+}
+
+.face.back {
+  background: rgba(78, 205, 196, 0.8);
+}
+
+.face.left {
+  background: rgba(255, 193, 7, 0.8);
+}
+
+.face.right {
+  background: rgba(156, 39, 176, 0.8);
+}
+
+.face.top {
+  background: rgba(76, 175, 80, 0.8);
+}
+
+.face.bottom {
+  background: rgba(233, 30, 99, 0.8);
+}
+
+/* Optional: Add hover effect for interactivity */
+.isometric-perspective:hover {
+  transform: rotateX(45.264deg) rotateY(5deg) rotateZ(-35deg) scale(1.1);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    inset 0 0 30px rgba(255, 255, 255, 0.2);
+}
+
+/* Label overlay container - positioned relative to parent container */
+.label-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Base label styling - acts like a legend */
+.label {
+  position: absolute;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  color: black;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: 'Arial', sans-serif;
+  pointer-events: auto;
+  /* Smooth animation for label repositioning */
+  transition: left 0.3s ease, top 0.3s ease;
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+  /* Legend-style bottom border */
+  border-bottom: 3px solid #007acc;
+}
+
+/* Position-specific styling */
+.label[data-position="left"] {
+  /* Will be positioned to the left of the cube */
+  text-align: right;
+}
+
+.label[data-position="right"] {
+  /* Will be positioned to the right of the cube */
+  text-align: left;
+}
+
+.label[data-position="top"] {
+  /* Will be positioned above the cube */
+  text-align: center;
+}
+
+.label[data-position="bottom"] {
+  /* Will be positioned below the cube */
+  text-align: center;
+}

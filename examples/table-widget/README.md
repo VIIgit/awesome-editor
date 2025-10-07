@@ -227,7 +227,9 @@ divTable.group('department');
 ```
 
 #### `clearGrouping()`
+
 Remove all grouping.
+
 ```javascript
 divTable.clearGrouping();
 ```

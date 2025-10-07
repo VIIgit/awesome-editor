@@ -16,15 +16,7 @@
   cursor: grabbing;
 }
 
-
-/* ========= WIREFRAME STYLES - Core 3D Structure ========= */
-
 .isometric-perspective {
-  background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-  border: 3px solid #333;
-  box-shadow:
-    0 0 20px rgba(0, 0, 0, 0.3),
-    inset 0 0 20px rgba(255, 255, 255, 0.1);
 
   /* True isometric transformation with Z-axis rotation: 45.264° X-axis, 5° Y-axis, -35° Z-axis */
   transform: rotateX(45.264deg) rotateY(5deg) rotateZ(-35deg);
@@ -45,6 +37,9 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform-origin: center center;
+  /* Prevent text and image selection */
+  user-select: none;
+  -webkit-user-select: none; /* Keep for older Safari/iOS */
 }
 
 /* Create a centered coordinate system by offsetting the perspective center */
@@ -70,7 +65,6 @@
   -webkit-backface-visibility: hidden;
 }
 
-
 .face {
   position: absolute;
   width: 100px;
@@ -89,52 +83,12 @@
   left: 50%;
   top: 50%;
   transform-style: preserve-3d;
-  /* Performance optimizations */
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transform-origin: center center;
+
   box-sizing: border-box;
   opacity: 0.9;
 }
 
-
-/* ========= INSTANCE-SPECIFIC STYLES ========= */
-
-/* Default face colors - can be overridden by instances */
-.face.front {
-  background: rgba(255, 107, 107, 0.8);
-}
-
-.face.back {
-  background: rgba(78, 205, 196, 0.8);
-}
-
-.face.left {
-  background: rgba(255, 193, 7, 0.8);
-}
-
-.face.right {
-  background: rgba(156, 39, 176, 0.8);
-}
-
-.face.top {
-  background: rgba(76, 175, 80, 0.8);
-}
-
-.face.bottom {
-  background: rgba(233, 30, 99, 0.8);
-}
-
-/* ========= ADDITIONAL EFFECTS ========= */
-
-/* Optional: Add hover effect for interactivity */
-.isometric-perspective:hover {
-  transform: rotateX(45.264deg) rotateY(5deg) rotateZ(-35deg) scale(1.1);
-  box-shadow:
-    0 20px 40px rgba(0, 0, 0, 0.4),
-    inset 0 0 30px rgba(255, 255, 255, 0.2);
-}
-
+/* ========= WIREFRAME STYLES - Core 3D Structure ========= */
 
 /* Navigation elements - show pointer cursor on hover */
 [data-nav-xyz], [data-nav-zoom] {
@@ -143,60 +97,6 @@
 
 [data-nav-xyz]:hover, [data-nav-zoom]:hover {
   cursor: pointer !important;
-}
-
-/* ========= LABELS AND UI ========= */
-
-/* Label overlay container - positioned relative to parent container */
-.label-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1000;
-}
-
-/* Base label styling - acts like a legend */
-.label {
-  position: absolute;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.95);
-  color: black;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
-  font-family: 'Arial', sans-serif;
-  pointer-events: auto;
-  /* Smooth animation for label repositioning */
-  transition: left 0.3s ease, top 0.3s ease;
-  border: 1px solid #ccc;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-
-  /* Legend-style bottom border */
-  border-bottom: 3px solid #007acc;
-}
-
-/* Position-specific styling */
-.label[data-position="left"] {
-  /* Will be positioned to the left of the cube */
-  text-align: right;
-}
-
-.label[data-position="right"] {
-  /* Will be positioned to the right of the cube */
-  text-align: left;
-}
-
-.label[data-position="top"] {
-  /* Will be positioned above the cube */
-  text-align: center;
-}
-
-.label[data-position="bottom"] {
-  /* Will be positioned below the cube */
-  text-align: center;
 }
 
 /* Additional styling for better visual effect */
@@ -246,10 +146,10 @@ isometric-perspective {
 }
 
 /* Show compact-controls on hover */
-#modern-scene:hover .compact-controls,
-#modern-scene:focus .compact-controls,
-#modern-scene:focus-within .compact-controls,
-#modern-scene.show-controls .compact-controls {
+.isometric-container:hover .compact-controls,
+.isometric-container:focus .compact-controls,
+.isometric-container:focus-within .compact-controls,
+.isometric-container.show-controls .compact-controls {
   opacity: 1;
   pointer-events: auto;
 }
@@ -272,7 +172,7 @@ isometric-perspective {
   position: relative;
   width: 40px;
   height: 40px;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.05));
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   display: flex;
@@ -583,15 +483,15 @@ isometric-perspective {
   bottom: 0;
   background: linear-gradient(135deg,
       rgba(255, 255, 255, 0.1) 0%,
-      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0) 50%,
       rgba(255, 255, 255, 0.1) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid rgba(255, 3, 3, 0.8);
   border-radius: 5px;
   opacity: 0;
   transition: all 0.3s ease;
   pointer-events: none;
   z-index: 10;
-  transform: translateZ(10px);
+  transform: translateZ(5px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     inset 0 -1px 0 rgba(0, 0, 0, 0.1),
@@ -600,7 +500,7 @@ isometric-perspective {
 
 .nav-clickable:hover::before {
   opacity: 1;
-  transform: translateZ(10px) scale(1.02);
+  transform: translateZ(15px) scale(1.02);
 }
 
 .nav-clickable:active::before {
@@ -609,30 +509,12 @@ isometric-perspective {
 }
 
 /* Enhanced glass effect for faces */
-.face.nav-clickable::before {
-  border-radius: 2px;
-  background: linear-gradient(135deg,
-      rgba(255, 255, 255, 0.25) 0%,
-      rgba(255, 255, 255, 0.12) 50%,
-      rgba(255, 255, 255, 0.25) 100%);
-}
-
-/* Enhanced glass effect for scenes */
-.scene.nav-clickable::before {
+.face.nav-clickable::before, .scene.nav-clickable::before, .label.nav-clickable::before {
   border-radius: 6px;
   background: linear-gradient(135deg,
-      rgba(255, 255, 255, 0.2) 0%,
-      rgba(255, 255, 255, 0.1) 50%,
-      rgba(255, 255, 255, 0.2) 100%);
-}
-
-/* Enhanced glass effect for labels */
-.label.nav-clickable::before {
-  border-radius: 8px;
-  background: linear-gradient(135deg,
-      rgba(255, 255, 255, 0.22) 0%,
-      rgba(255, 255, 255, 0.12) 50%,
-      rgba(255, 255, 255, 0.22) 100%);
+      rgba(255, 255, 255, 0.25) 0%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(255, 255, 255, 0.25) 100%);
 }
 
 /* Navigation indicator */
@@ -649,6 +531,14 @@ isometric-perspective {
 
 .nav-clickable:hover::after {
   opacity: 0.8;
+}
+
+/* Navigation selected state */
+.face.nav-selected,
+.scene.nav-selected {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Shadow divs for elevated scenes */
@@ -719,6 +609,3 @@ isometric-perspective {
 .nav-point.active {
   background: var(--nav-bg-active-light);
 }
-
-
-
