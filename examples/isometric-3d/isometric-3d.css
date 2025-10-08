@@ -40,6 +40,8 @@
   /* Prevent text and image selection */
   user-select: none;
   -webkit-user-select: none; /* Keep for older Safari/iOS */
+
+  z-index: -1;
 }
 
 /* Create a centered coordinate system by offsetting the perspective center */
@@ -143,6 +145,7 @@ isometric-perspective {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   opacity: 0;
   transition: opacity 0.3s ease;
+  z-index: 99;
 }
 
 /* Show compact-controls on hover */

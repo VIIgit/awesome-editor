@@ -1061,7 +1061,7 @@ class Isometric3D {
     this.setActiveNavPoint(matchingIndex);
   }
 
-  smoothAnimateTo(targetRotation, targetZoom, duration = 1000) {
+  smoothAnimateTo(targetRotation, targetZoom, duration = 1200) {
     this.isAnimating = true; // Set animation flag to prevent premature label updates
 
     const startTime = performance.now();
@@ -1081,10 +1081,10 @@ class Isometric3D {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
 
-      // Use easeInOutCubic for smooth animation
+      // Use easeInOutQuad for smoother, more gentle animation
       const eased = progress < 0.5
-        ? 4 * progress * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
       // Interpolate rotation values
       this.currentRotation.x = startRotation.x + (clampedTarget.x - startRotation.x) * eased;
