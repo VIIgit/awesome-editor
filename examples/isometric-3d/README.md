@@ -6,6 +6,9 @@ A sophisticated 3D isometric visualization system with bidirectional scroll sync
 
 - **Interactive 3D Navigation**: Click on 3D elements to navigate camera views
 - **Bidirectional Scroll Sync**: Page scrolling updates 3D view, 3D navigation scrolls the page
+- **SVG Connectors**: Visual connectors between 3D elements with automatic positioning
+- **Highlighting System**: Programmable element highlighting with opacity-based visual feedback
+- **Auto-Highlighting**: Automatic highlighting on navigation based on data attributes
 - **Smooth Animations**: 1.8s easeInOutQuad animations for both scroll and camera movement
 - **Anti-Flickering**: Debouncing and state management prevent visual glitches
 - **User Override**: Manual scrolling immediately cancels programmatic animations
@@ -84,7 +87,33 @@ Resets camera to default position and zoom (same as pressing Space key).
 controller.resetToDefault();
 ```
 
+#### `controller.highlightByKey(keys)`
+
+Highlights elements and connectors matching the specified key(s).
+
+```javascript
+controller.highlightByKey('A');           // Single key
+controller.highlightByKey(['A', 'B']);    // Multiple keys
+```
+
+#### `controller.clearHighlights()`
+
+Removes all highlights from elements and connectors.
+
+```javascript
+controller.clearHighlights();
+```
+
+#### `controller.toggleHighlight(key)`
+
+Toggles the highlight state for elements matching the specified key.
+
+```javascript
+controller.toggleHighlight('A');
+```
+
 #### `controller.on(eventName, callback)`
+
 Listens for controller events.
 
 **Events:**
@@ -269,6 +298,124 @@ Link 3D elements to content sections using `data-id`:
     </script>
 </body>
 ```
+
+## SVG Connectors
+
+Visually connect 3D elements with automatically positioned SVG paths and arrows.
+
+### Configuration
+
+Define connectors using the `data-connectors` attribute on the isometric-perspective element:
+
+```html
+<div class="isometric-perspective" data-connectors='[
+    {
+        "from": "cube1",
+        "fromPoint": "bottom",
+        "edgeAt": "80",
+        "to": "cube3",
+        "toPoint": "top",
+        "color": "#4CAF50",
+        "keys": ["A"]
+    },
+    {
+        "from": "cube2",
+        "fromPoint": "right",
+        "to": "cube4",
+        "toPoint": "left",
+        "color": "#2196F3",
+        "keys": ["B", "C"]
+    }
+]'>
+```
+
+### Connector Properties
+
+- `from` (string) - Source element ID
+- `fromPoint` (string) - Connection point: "top", "bottom", "left", "right", "front", "back"
+- `to` (string) - Target element ID
+- `toPoint` (string) - Connection point on target
+- `edgeAt` (string, optional) - Percentage along edge (0-100), default: "50"
+- `color` (string, optional) - Line color, default: "#4CAF50"
+- `keys` (array, optional) - Highlight keys for this connector
+
+### Features
+
+- **Automatic SVG Creation**: SVG overlay is created programmatically when connectors are defined
+- **Dynamic Positioning**: Connectors update automatically during 3D rotations
+- **Arrow Markers**: Automatic arrow heads matching connector colors
+- **Highlight Support**: Connectors can be highlighted using the highlighting system
+
+## Highlighting System
+
+Programmatically control visual emphasis of elements and connectors.
+
+### Data Attributes
+
+#### `data-keys` - Define highlight keys on elements
+
+```html
+<div id="cube1" class="scene" data-keys="A,B">...</div>
+<div class="face top" data-keys="C">...</div>
+```
+
+#### `data-auto-highlight-key` - Auto-highlight on navigation
+
+```html
+<!-- Auto-highlight when navigating to this element -->
+<div class="face top" 
+     data-nav-xyz="45.0.315"
+     data-auto-highlight-key="A,B">
+    Top Face
+</div>
+
+<!-- Auto-highlight from parent scene -->
+<div id="cube1" class="scene" data-auto-highlight-key="C">
+    ...
+</div>
+```
+
+### Programmatic Usage
+
+```javascript
+// Highlight elements with key "A"
+controller.highlightByKey('A');
+
+// Highlight multiple keys
+controller.highlightByKey(['A', 'B']);
+
+// Clear all highlights
+controller.clearHighlights();
+
+// Toggle highlight
+controller.toggleHighlight('A');
+```
+
+### Visual Behavior
+
+- **Highlighted elements**: opacity 1.0 (full visibility)
+- **Non-highlighted elements**: opacity 0.3 (dimmed)
+- **Scene-level highlighting**: Entire scenes are highlighted, not individual faces
+- **Face inheritance**: Faces of highlighted scenes remain fully visible
+- **Connector highlighting**: Connectors with matching keys are highlighted
+- **Smooth transitions**: 0.3s opacity transitions
+
+### Auto-Highlighting
+
+When navigating to an element with `data-auto-highlight-key`:
+
+1. Elements and connectors with matching keys are highlighted
+2. Non-matching elements are dimmed
+3. Resetting to default position clears all highlights
+4. Works with all navigation methods (click, tab, scroll, keyboard)
+
+### Hierarchical Key Resolution
+
+Keys are resolved in the following order:
+
+1. Check navigation element for `data-auto-highlight-key`
+2. If not found, check parent scene for `data-auto-highlight-key`
+3. If still not found, clear all highlights
 
 ## How It Works
 

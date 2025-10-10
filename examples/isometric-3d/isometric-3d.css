@@ -18,13 +18,11 @@
 
 .isometric-perspective {
 
-  /* True isometric transformation with Z-axis rotation: 45.264° X-axis, 5° Y-axis, -35° Z-axis */
-  transform: rotateX(45.264deg) rotateY(5deg) rotateZ(-35deg);
   transform-style: preserve-3d;
 
-  /* Smooth transition for any hover effects */
-  transition: transform 0.3s ease;
-
+  /* Hide initially until 3D transforms are ready */
+  opacity: 0;
+  
   /* Center the 3D content properly within the container */
   position: relative;
 
@@ -42,6 +40,16 @@
   -webkit-user-select: none; /* Keep for older Safari/iOS */
 
   z-index: -1;
+}
+
+/* Make perspective visible after 3D transforms are applied with fade-in effect */
+.isometric-perspective.ready {
+  opacity: 1;
+}
+
+/* Smooth transition for keyboard navigation */
+.isometric-perspective.smooth-transition {
+  transition: transform 0.15s ease-out;
 }
 
 /* Create a centered coordinate system by offsetting the perspective center */
@@ -589,6 +597,25 @@ isometric-perspective {
 
 .nav-point.active {
   background: rgba(255, 255, 255, 1);
+}
+
+/* Highlighting system for connectors and elements */
+.connector-path,
+.connector-marker,
+.face {
+  transition: opacity 0.3s ease;
+}
+
+/* When any element is highlighted, dim non-highlighted elements more */
+.isometric-perspective:has(.highlight) .connector-path:not(.highlight),
+.isometric-perspective:has(.highlight) .connector-marker:not(.highlight) {
+  opacity: 0.2;
+}
+
+/* Don't dim scenes directly, as it would affect all child faces */
+/* Instead, we'll dim only the faces of non-highlighted scenes */
+.isometric-perspective:has(.highlight) .scene:not(.highlight) > .face {
+  opacity: 0.2;
 }
 
 /* Dark mode variables */

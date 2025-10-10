@@ -115,39 +115,47 @@
 
     <div class="sticky-section-wrapper">
         <div id="modern-scene" class="isometric-container">
-            <div class="isometric-perspective grid-layout">
-                <div class="scene rect-a" data-focus="center">RECT A</div>
-                <div class="scene rect-b" data-z-axis="80" data-nav-xyz="00.15.15" data-nav-zoom="1.2"
+            <div class="isometric-perspective grid-layout" data-connectors='[
+                     {"from": "cube1", "fromPoint": "bottom", "edgeAt": "80", "to": "cube3", "toPoint": "top", "color": "#4CAF50", "keys": ["A"]},
+                     {"from": "cube1", "fromPoint": "right", "edgeAt": "20", "to": "rectA", "toPoint": "left", "color": "#4CAF50", "keys": ["C"]},
+                     {"from": "cube4", "fromPoint": "left", "edgeAt": "50", "to": "cube3", "toPoint": "right", "color": "#2196F3", "keys": ["A", "B"]}
+                 ]'>
+
+                <div id="rectA" class="scene rect-a" data-focus="center">RECT A</div>
+                <div id="cube4" class="scene rect-b" data-z-axis="80" data-nav-xyz="00.15.15" data-nav-zoom="1.2"
                     data-id="cube1-description">RECT B</div>
 
-                <div id="cube1" class="scene scene-a" data-width="100" data-height="100" data-depth="100" data-z-axis="80">
+                <div id="cube1" class="scene scene-a" data-width="100" data-height="100" data-depth="100"
+                    data-z-axis="80" data-auto-highlight-key="C" data-keys="C,B">
                     <div class="face front">front</div>
                     <div class="face back">back</div>
                     <div class="face left">left</div>
                     <div class="face right">right</div>
-                    <div class="face top" data-nav-xyz="48.00.-79" data-nav-zoom="1.8" data-focus="center"
-                        data-id="cube1-description">top</div>
+                    <div class="face top" data-nav-xyz="48.00.-79" data-nav-zoom="0.7" data-focus="center"
+                        data-id="cube1-description">top 1</div>
                     <div class="face bottom">bottom</div>
                 </div>
                 <div style="transform-style: preserve-3d;"> Cube 2
                     <div id="cube2" class="scene scene-b" data-width="20" data-height="360" data-depth="80"
-                        data-z-axis="10">
+                        data-z-axis="10" data-keys="A">
                         <div class="face front">front</div>
                         <div class="face back">back</div>
                         <div class="face left">left</div>
                         <div class="face right">right</div>
-                        <div class="face top" id="cube2-top" data-z-axis="180" data-nav-xyz="00.00.15" data-nav-zoom="0.8"
-                            data-id="cube2-top-description">top</div>
+                        <div class="face top" id="cube2-top" data-z-axis="180" data-nav-xyz="00.00.15"
+                            data-nav-zoom="0.8" data-id="cube2-top-description">top 2</div>
                         <div class="face bottom">bottom</div>
                     </div>
                 </div>
-                <div id="cube3" class="scene scene-c" data-width="200" data-height="40" data-depth="80" data-z-axis="50">
+                <div id="cube3" class="scene scene-c" data-width="200" data-height="40" data-depth="80"
+                    data-z-axis="50">
                     <div class="face front">front</div>
                     <div class="face back">back</div>
                     <div class="face left">left</div>
                     <div class="face right">right</div>
                     <div class="face top" data-nav-xyz="15.00.-15" data-nav-zoom="1.1" data-focus="center"
-                        data-id="cube3-description">top</div>
+                        data-id="cube3-description"
+                        data-auto-highlight-key="A,B">top cube3</div>
                     <div class="face bottom">bottom</div>
                 </div>
             </div>
@@ -175,31 +183,32 @@
                 <h2>CUBE 1 DESCRIPTION</h2>
                 <div style="padding: 20px;">
                     <p>This is the description for Cube 1.</p>
-                    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore
+                    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut
+                        labore
                         et dolore magna aliqua.</p>
                     <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
                         consequat.</p>
                 </div>
             </div>
 
-            <div id="cube2-top-description" class="description-section"
-                style="min-height: 600px; margin-bottom: 20px;">
+            <div id="cube2-top-description" class="description-section" style="min-height: 600px; margin-bottom: 20px;">
                 <h2>CUBE 2 TOP DESCRIPTION</h2>
                 <div style="padding: 20px;">
                     <p>This is the description for Cube 2 Top face.</p>
                     <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
                         pariatur.</p>
-                    <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est
+                    <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id
+                        est
                         laborum.</p>
                 </div>
             </div>
 
-            <div id="cube3-description" class="description-section"
-                style="min-height: 600px; margin-bottom: 20px;">
+            <div id="cube3-description" class="description-section" style="min-height: 600px; margin-bottom: 20px;">
                 <h2>CUBE 3 DESCRIPTION</h2>
                 <div style="padding: 20px;">
                     <p>This is the description for Cube 3.</p>
-                    <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
+                    <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.
+                    </p>
                     <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur
                         magni dolores.</p>
                 </div>
@@ -217,7 +226,8 @@
         <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-        </p>        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
+        </p>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
         </p>
@@ -226,7 +236,8 @@
         <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-        </p>        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
+        </p>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
         </p>
@@ -235,7 +246,8 @@
         <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-        </p>        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
+        </p>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
         </p>
@@ -244,7 +256,8 @@
         <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-        </p>        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
+        </p>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
             magna aliqua.</p>
         <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
         </p>
@@ -279,6 +292,7 @@
             debounceDelay: 100       // Debounce delay for navigation updates
         });
 
+        window.controller = controller;
     </script>
 </body>
 

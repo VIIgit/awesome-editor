@@ -130,6 +130,19 @@ class ScrollSync {
                             if (this.currentNavigationTarget !== navigationKey) {
                                 this.currentNavigationTarget = navigationKey;
                                 this.controller.navigateToPosition(xyz, zoom);
+                                
+                                // Check for auto-highlight keys on the navigation element or its parent scene
+                                const autoHighlightKeys = navElement.getAttribute('data-auto-highlight-key') || 
+                                                         navElement.closest('.scene')?.getAttribute('data-auto-highlight-key');
+                                
+                                if (autoHighlightKeys) {
+                                    // Split by comma and highlight all keys
+                                    const keys = autoHighlightKeys.split(',').map(k => k.trim());
+                                    this.controller.highlightByKey(keys);
+                                } else {
+                                    // No auto-highlight defined, clear any existing highlights
+                                    this.controller.clearHighlights();
+                                }
                             }
                         }
                     }
@@ -138,6 +151,7 @@ class ScrollSync {
                     if (this.currentNavigationTarget !== null) {
                         this.currentNavigationTarget = null;
                         this.controller.resetToDefault();
+                        this.controller.clearHighlights();
                     }
                 }
             }, this.options.debounceDelay);
