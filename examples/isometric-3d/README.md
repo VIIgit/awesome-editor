@@ -54,6 +54,7 @@ A sophisticated 3D isometric visualization system with bidirectional scroll sync
 Creates and initializes an isometric 3D controller.
 
 **Parameters:**
+
 - `containerId` (string) - DOM element ID containing the isometric scene
 - `options` (Object) - Configuration options:
   - `defaultRotation` (Object) - Initial camera rotation `{ x, y, z }` in degrees
@@ -61,6 +62,7 @@ Creates and initializes an isometric 3D controller.
   - `showCompactControls` (boolean) - Show UI controls (default: false)
   - `bookmarkPrefix` (string) - URL parameter prefix for saving state
   - `rotationLimits` (Object) - Rotation constraints:
+
     ```javascript
     {
       x: { min: 0, max: 180 },
@@ -72,7 +74,9 @@ Creates and initializes an isometric 3D controller.
 **Returns:** Controller instance with the following methods:
 
 #### `controller.navigateToPosition(xyzString, zoomString)`
+
 Smoothly animates camera to a specific position.
+
 - `xyzString` (string) - Rotation in format "x.y.z" (e.g., "45.0.315")
 - `zoomString` (string) - Zoom level (e.g., "1.5")
 
@@ -81,6 +85,7 @@ controller.navigateToPosition("45.0.315", "1.5");
 ```
 
 #### `controller.resetToDefault()`
+
 Resets camera to default position and zoom (same as pressing Space key).
 
 ```javascript
@@ -117,7 +122,9 @@ controller.toggleHighlight('A');
 Listens for controller events.
 
 **Events:**
+
 - `navigationChange` - Fired when 3D view changes
+  
   ```javascript
   controller.on('navigationChange', (data) => {
       console.log('Navigated to:', data.element);
@@ -131,6 +138,7 @@ Listens for controller events.
 Creates a scroll synchronization manager.
 
 **Parameters:**
+
 - `controller` (Object) - Isometric 3D controller instance
 - `options` (Object) - Optional configuration:
   - `stickyThreshold` (number) - Top offset for active sections (default: 320)
@@ -140,6 +148,7 @@ Creates a scroll synchronization manager.
   - `dataIdAttribute` (string) - Linking attribute name (default: 'data-id')
 
 **Example:**
+
 ```javascript
 const scrollSync = new ScrollSync(controller, {
     stickyThreshold: 400,
@@ -151,6 +160,7 @@ const scrollSync = new ScrollSync(controller, {
 ### Methods
 
 #### `scrollSync.scrollToSection(sectionId)`
+
 Programmatically scroll to a specific section.
 
 ```javascript
@@ -158,6 +168,7 @@ scrollSync.scrollToSection('cube1-description');
 ```
 
 #### `scrollSync.destroy()`
+
 Clean up event listeners and timers.
 
 ```javascript
@@ -218,6 +229,7 @@ Wrap your isometric scene and content sections together:
 Link 3D elements to content sections using `data-id`:
 
 **3D Element:**
+
 ```html
 <div class="face top" 
      data-nav-xyz="45.0.315" 
@@ -228,6 +240,7 @@ Link 3D elements to content sections using `data-id`:
 ```
 
 **Content Section:**
+
 ```html
 <div id="cube1-description" class="description-section">
     <h2>Cube 1 Description</h2>
@@ -236,6 +249,7 @@ Link 3D elements to content sections using `data-id`:
 ```
 
 **Required Attributes:**
+
 - `data-id` - Links 3D element to section ID (must match section's `id`)
 - `data-nav-xyz` - Camera rotation in "x.y.z" format
 - `data-nav-zoom` - Target zoom level
@@ -339,7 +353,7 @@ Define connectors using the `data-connectors` attribute on the isometric-perspec
 - `color` (string, optional) - Line color, default: "#4CAF50"
 - `keys` (array, optional) - Highlight keys for this connector
 
-### Features
+### Connector features
 
 - **Automatic SVG Creation**: SVG overlay is created programmatically when connectors are defined
 - **Dynamic Positioning**: Connectors update automatically during 3D rotations
@@ -452,6 +466,7 @@ const scrollSync = new ScrollSync(controller, {
 ```
 
 In `isometric-3d.js`, modify `smoothAnimateTo` duration parameter (line 1062):
+
 ```javascript
 smoothAnimateTo(targetRotation, targetZoom, duration = 2500) {
 ```
@@ -505,16 +520,19 @@ When the isometric container has focus:
 ## Performance Tips
 
 1. **Limit Threshold Points**: The IntersectionObserver uses 11 thresholds for smooth detection. Reduce if performance is an issue:
+
    ```javascript
    threshold: [0, 0.25, 0.5, 0.75, 1.0]  // 5 instead of 11
    ```
 
 2. **Adjust Debounce Delay**: Increase for better performance on slower devices:
+
    ```javascript
    debounceDelay: 200  // vs default 100ms
    ```
 
 3. **Reduce Animation Duration**: Shorter animations use less CPU:
+
    ```javascript
    scrollDuration: 1200  // vs default 1800ms
    ```
@@ -522,16 +540,19 @@ When the isometric container has focus:
 ## Troubleshooting
 
 ### Issue: Scroll sync not working
+
 - ✅ Check that `data-id` on 3D element matches section `id`
 - ✅ Verify sections have class `.description-section`
 - ✅ Ensure `stickyThreshold` matches CSS `top` value
 
 ### Issue: Flickering during scroll
+
 - ✅ Increase `debounceDelay` (default: 100ms)
 - ✅ Reduce `threshold` array size
 - ✅ Check for console errors
 
 ### Issue: Navigation doesn't scroll to section
+
 - ✅ Verify `navigationChange` event fires (add console.log)
 - ✅ Check section IDs are correct
 - ✅ Ensure ScrollSync is initialized after controller
