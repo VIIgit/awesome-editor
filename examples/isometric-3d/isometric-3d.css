@@ -150,11 +150,8 @@
   z-index: 99;
 }
 
-/* Show compact-controls on hover */
-.isometric-container:hover .compact-controls,
-.isometric-container:focus .compact-controls,
-.isometric-container:focus-within .compact-controls,
-.isometric-container.show-controls .compact-controls {
+/* Show compact-controls only on hover */
+.isometric-container:hover .compact-controls {
   opacity: 1;
   pointer-events: auto;
 }

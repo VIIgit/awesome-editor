@@ -25,7 +25,6 @@ class Isometric3D {
     this.defaultTranslation = { x: 0, y: 0, z: 0 };
 
     this.urlUpdateTimeout = null;
-    this.controlsTimeout = null;
     this.isDragging = false;
     this.lastMouseX = 0;
     this.lastMouseY = 0;
@@ -839,9 +838,6 @@ class Isometric3D {
     if (scene.style.top !== '50%') scene.style.top = '50%';
     if (scene.style.position !== 'absolute') scene.style.position = 'absolute';
 
-    // Show controls temporarily on interaction
-    this.showControls();
-
     // Update display values
     this.updateDisplayValues();
 
@@ -1122,18 +1118,6 @@ class Isometric3D {
     };
 
     requestAnimationFrame(animate);
-  }
-
-  showControls() {
-    this.container.classList.add('show-controls');
-
-    // Clear existing timeout
-    clearTimeout(this.controlsTimeout);
-
-    // Hide controls after 3 seconds
-    this.controlsTimeout = setTimeout(() => {
-      this.container.classList.remove('show-controls');
-    }, 3000);
   }
 
   normalizeAngle(angle) {
@@ -2204,7 +2188,6 @@ class Isometric3D {
   destroy() {
     this.removeEventListeners();
     clearTimeout(this.urlUpdateTimeout);
-    clearTimeout(this.controlsTimeout);
 
     // Clean up compact controls if they exist
     const compactControls = this.container.querySelector('.compact-controls');
